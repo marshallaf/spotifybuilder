@@ -5,8 +5,9 @@ mongoose.Promise = global.Promise;
 const User = new mongoose.Schema({
   spotify: {
     id: String,
-    access_token: String,
-    refresh_token: String,
+    displayName: String,
+    href: String,
+    image: String,
   }
 });
 
