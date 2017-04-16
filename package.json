@@ -1,0 +1,14 @@
+{
+  "name": "spotify-builder",
+  "version": "1.0.0",
+  "description": "App to automatically aggregate a set of playlists.",
+  "main": "server.js",
+  "scripts": {
+    "test": "nodemon server.js"
+  },
+  "author": "Andrew Marshall",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.15.2"
+  }
+}
