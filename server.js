@@ -20,6 +20,8 @@ mongoose.connect(process.env.MONGO_URI);
 
 // setup static access
 app.use('/public', express.static(path.join(process.cwd(), 'public')));
+app.use('/controllers', express.static(path.join(process.cwd(), 'app', 'controllers')));
+app.use('/common', express.static(path.join(process.cwd(), 'app', 'common')));
 
 // setup session options
 app.use(session({

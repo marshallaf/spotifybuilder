@@ -27,10 +27,11 @@ module.exports = passport => {
           if (user) return done(null, user);
           else {
             const newUser = new User();
-            newUser.spotify.id = profile.id;
-            newUser.spotify.displayName = profile.display_name;
-            newUser.spotify.href = profile.href;
-            newUser.spotify.image = profile.images[0].url;
+            console.log(profile._json);
+            newUser.spotify.id = profile._json.id;
+            newUser.spotify.displayName = profile._json.display_name;
+            newUser.spotify.href = profile._json.href;
+            newUser.spotify.image = profile._json.images[0].url;
 
             newUser.save(err => {
               if (err) throw err;

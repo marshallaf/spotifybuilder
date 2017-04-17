@@ -27,13 +27,13 @@ const routes = (app, passport) => {
     });
 
   app.route('/profile')
-    .get(isLoggedIn, (req, res) => {
+    .get(isAuthed, (req, res) => {
       res.sendFile(process.cwd() + '/public/profile.html');
     });
 
   // returns json object with user information from passport
   app.route('/api/:id')
-    .get(isLoggedIn, (req, res) => {
+    .get(isAuthed, (req, res) => {
       res.json(req.user.spotify);
     });
 
@@ -51,7 +51,7 @@ const routes = (app, passport) => {
 
   app.route('/auth/spotify/callback')
     .get(passport.authenticate('spotify', {
-      successRedirect: '/',
+      successRedirect: '/profile',
       failureRedirect: '/login',
     }));
 }
