@@ -8,6 +8,8 @@ const User = new mongoose.Schema({
     displayName: String,
     href: String,
     image: String,
+    accessToken: String,
+    refreshToken: String,
   }
 });
 

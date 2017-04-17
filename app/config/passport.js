@@ -24,17 +24,24 @@ module.exports = passport => {
       process.nextTick(() => {
         User.findOne({ 'spotify.id': profile.id }, (err, user) => {
           if (err) return done(err);
-          if (user) return done(null, user);
-          else {
+          if (user) {
+            user.spotify.accessToken = accessToken;
+            user.spotify.refreshToken = refreshToken;
+            console.log(user);
+            done(null, user);
+          } else {
             const newUser = new User();
             console.log(profile._json);
             newUser.spotify.id = profile._json.id;
             newUser.spotify.displayName = profile._json.display_name;
             newUser.spotify.href = profile._json.href;
             newUser.spotify.image = profile._json.images[0].url;
+            newUser.spotify.accessToken = accessToken;
+            newUser.spotify.refreshToken = refreshToken;
 
             newUser.save(err => {
               if (err) throw err;
+              console.log(newUser);
               return done(null, newUser);
             });
           }

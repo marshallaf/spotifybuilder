@@ -25,10 +25,25 @@ const fetchFunctions = {
         if (response.status === 200) {
           return response.json();
         }
-      }, error => { throw error; })
+      }).catch(error => { throw error; })
       // call callback with the json
       .then(bodyJson => {
         callback(bodyJson);
       });
   },
+  spotifyRequest: (method, url, accessToken, callback) => {
+    const headers = new Headers({
+      'Authorization': 'Bearer ' + accessToken,
+    });
+
+    const fetchOptions = {
+      method: method,
+      headers: headers,
+    };
+
+    fetch(url, fetchOptions)
+      .then(response => response.json())
+      .catch(error => { throw error; })
+      .then(bodyJson => callback(bodyJson));
+  }
 };
