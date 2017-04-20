@@ -2,19 +2,21 @@
   "name": "spotify-builder",
   "version": "1.0.0",
   "description": "App to automatically aggregate a set of playlists.",
-  "main": "server.js",
+  "main": "./server/index.js",
   "scripts": {
-    "start": "nodemon --use_strict ./server/server.js",
+    "start": "nodemon --use_strict ./server/index.js",
     "build": "webpack"
   },
   "author": "Andrew Marshall",
   "license": "ISC",
   "dependencies": {
+    "body-parser": "^1.17.1",
     "dotenv": "^4.0.0",
     "express": "^4.15.2",
     "express-session": "^1.15.2",
     "mongoose": "^4.9.4",
     "passport": "^0.3.2",
-    "passport-spotify": "^0.3.1"
+    "passport-spotify": "^0.3.1",
+    "webpack": "^2.4.1"
   }
 }
