@@ -4,7 +4,8 @@
   "description": "App to automatically aggregate a set of playlists.",
   "main": "server.js",
   "scripts": {
-    "test": "nodemon server.js"
+    "start": "nodemon --use_strict ./server/server.js",
+    "build": "webpack"
   },
   "author": "Andrew Marshall",
   "license": "ISC",
