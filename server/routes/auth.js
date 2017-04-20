@@ -11,17 +11,15 @@ router.get('/spotify/callback', (req, res, next) => {
   return passport.authenticate('spotify', (err, jwToken, user) => {
     if (err || !user) {
       // login failed, either due to error or no spotify auth
-      return res.status(400).json({
-        success: false,
-      });
+      res.redirect('/login');
     }
 
-    // return token and user data to requester
-    return res.status(200).json({
-      success: true,
-      jwToken,
-      user,
-    });
+    // set cookie to JWT
+    // TODO: upgrade the security of this?
+    res.cookie('token', jwToken);
+
+    // redirect response to /dashboard (will be caught by express and handed off to React-Router)
+    res.redirect('/dashboard');
   })(req, res, next);
 });
 
