@@ -7,6 +7,7 @@ module.exports = new SpotifyStrategy(
     clientID: process.env.SPOTIFY_KEY,
     clientSecret: process.env.SPOTIFY_SECRET,
     callbackURL: process.env.APP_URL + '/auth/spotify/callback',
+    session: false,
   },
   (accessToken, refreshToken, profile, done) => {
     // makes it async
