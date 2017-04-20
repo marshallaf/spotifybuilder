@@ -11,6 +11,7 @@ router.get('/spotify/callback', (req, res, next) => {
   return passport.authenticate('spotify', (err, jwToken, user) => {
     if (err || !user) {
       // login failed, either due to error or no spotify auth
+      // TODO: may want to indicate to user that something failed
       res.redirect('/login');
     }
 
