@@ -1,35 +1,30 @@
 const SpotifyStrategy = require('passport-spotify').Strategy;
 const User = require('../models/users');
-const AuthConfig = require('./auth');
+const jwt = require('jsonwebtoken');
 
-module.exports = passport => {
-
-  passport.serializeUser((user, done) => {
-    return done(null, user.id);
-  });
-
-  passport.deserializeUser((id, done) => {
-    User.findById(id, (err, user) => {
-      done(err, user);
-    });
-  });
-
-  passport.use(new SpotifyStrategy(
+module.exports = new SpotifyStrategy(
     {
-      clientID: AuthConfig.clientId,
-      clientSecret: AuthConfig.clientSecret,
-      callbackURL: AuthConfig.callbackUrl,
+      clientId: process.env.SPOTIFY_KEY,
+      clientSecret: process.env.SPOTIFY_SECRET,
+      callbackUrl: process.env.APP_URL + '/auth/spotify/callback',
     },
     (accessToken, refreshToken, profile, done) => {
+      // makes it async
       process.nextTick(() => {
         User.findOne({ 'spotify.id': profile.id }, (err, user) => {
           if (err) return done(err);
           if (user) {
+            // user was found, update their tokens
             user.spotify.accessToken = accessToken;
             user.spotify.refreshToken = refreshToken;
             console.log(user);
-            done(null, user);
+
+            const token = createJWT(user);
+
+            // return to routing (/auth/login)
+            done(null, token, user);
           } else {
+            // user is new, add to database
             const newUser = new User();
             console.log(profile._json);
             newUser.spotify.id = profile._json.id;
@@ -42,7 +37,10 @@ module.exports = passport => {
             newUser.save(err => {
               if (err) throw err;
               console.log(newUser);
-              return done(null, newUser);
+
+              const token = createJWT(newUser); // does the new user have an id?
+
+              return done(null, token, newUser);
             });
           }
         });
@@ -50,3 +48,9 @@ module.exports = passport => {
     }
   ));
 };
+
+function createJWT(user) {
+  // create a jwToken for this user
+  const payload = { sub: user._id };
+  return jwt.sign(payload, process.env.JWT_SECRET);
+}
