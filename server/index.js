@@ -30,6 +30,11 @@ passport.use('spotify', require('./passport/spotify'));
 // server routing
 app.use('/auth', require('./routes/auth'));
 
+// ensure all routes typed into the address bar are routed to React-Router (at the entry)
+app.get('/*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../app/static/index.html'));
+});
+
 // start the server
 app.listen(app.get('port'), () => {
   console.log('server listening on port ' + app.get('port'));
