@@ -5,6 +5,7 @@ mongoose.Promise = global.Promise;
 const Playlist = new mongoose.Schema({
   name: String,
   id: String,
+  role: String,
 });
 
 const User = new mongoose.Schema({

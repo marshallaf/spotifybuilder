@@ -29,7 +29,8 @@ class DashboardPage extends React.Component {
   }
 
   playlistApi() {
-    axios.get('/api/playlists', { withCredentials: true });
+    axios.get('/api/playlists', { withCredentials: true })
+      .then(response => console.log(response.data));
   }
 
   render() {

@@ -22,8 +22,27 @@ router.get('/playlists', (req, res) => {
   if (!req.user) return res.status(401).end();
 
   getSpotifyPlaylists(req.user.spotify.id, req.user.spotify.accessToken, playlists => {
-    const spotifyPlaylists = playlists.map(playlist => ({name: playlist.name, id: playlist.id}));
-    console.log(spotifyPlaylists);
+    if (!playlists) return res.status(404).end();
+    const spotifyPlaylists = playlists.map(playlist => ({name: playlist.name, id: playlist.id, role: 'none'}));
+    User.findById(req.user._id, 'playlists', (err, user) => {
+      if (err) throw err;
+      // determine playlist roles
+      const newPlaylists = [];
+      user.playlists.forEach(playlist => {
+        const sPlaylist = spotifyPlaylists.find(spl => spl.id === playlist.id);
+        if (!sPlaylist) return;
+        sPlaylist.role = playlist.role;
+        newPlaylists.push(sPlaylist);
+      });
+      // store new set of playlists
+      user.playlists = newPlaylists;
+      user.save(err => {
+        if (err) throw err;
+        res.status(200).json({
+          playlists: spotifyPlaylists,
+        });
+      });
+    });
   });
 });
 
