@@ -20,7 +20,7 @@ module.exports = (req, res, next) => {
     const userId = decoded.sub;
 
     // check that the user exists
-    return User.findById(userId, (findErr, user) => {
+    return User.findById(userId, '_id spotify', (findErr, user) => {
       if (findErr || !user) {
         console.log('error locating user');
         return res.status(401).end();

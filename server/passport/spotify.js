@@ -12,7 +12,7 @@ module.exports = new SpotifyStrategy(
   (accessToken, refreshToken, profile, done) => {
     // makes it async
     process.nextTick(() => {
-      User.findOne({ 'spotify.id': profile.id }, (err, user) => {
+      User.findOne({ 'spotify.id': profile.id }, '_id spotify', (err, user) => {
         if (err) return done(err);
         if (user) {
           // user was found, update their tokens

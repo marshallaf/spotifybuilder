@@ -29,7 +29,7 @@ class DashboardPage extends React.Component {
   }
 
   playlistApi() {
-    axios.get('/api/spotify/playlists', { withCredentials: true });
+    axios.get('/api/playlists', { withCredentials: true });
   }
 
   render() {

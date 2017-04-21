@@ -2,6 +2,11 @@
 const mongoose = require('mongoose');
 mongoose.Promise = global.Promise;
 
+const Playlist = new mongoose.Schema({
+  name: String,
+  id: String,
+});
+
 const User = new mongoose.Schema({
   spotify: {
     id: String,
@@ -10,7 +15,8 @@ const User = new mongoose.Schema({
     image: String,
     accessToken: String,
     refreshToken: String,
-  }
+  },
+  playlists: [Playlist],
 });
 
 module.exports = mongoose.model('User', User);
