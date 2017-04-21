@@ -1,4 +1,5 @@
 import React from 'react';
+import axios from 'axios';
 
 class DashboardPage extends React.Component {
   constructor() {
@@ -27,12 +28,18 @@ class DashboardPage extends React.Component {
       });
   }
 
+  playlistApi() {
+    axios.get('/api/spotify/playlists', { withCredentials: true });
+  }
+
   render() {
     return (
       <div>
         <h1>Dashboard Page</h1>
         <br />
         <span onClick={this.userApi}>Hit the user api</span>
+        <br />
+        <span onClick={this.playlistApi}>Hit the playlist api</span>
         <br />
         {this.state.displayName && 
           <div>

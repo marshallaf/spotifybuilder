@@ -18,12 +18,15 @@ module.exports = new SpotifyStrategy(
           // user was found, update their tokens
           user.spotify.accessToken = accessToken;
           user.spotify.refreshToken = refreshToken;
-          //console.log(user);
+          // save updated user
+          user.save(err => {
+            if (err) throw err;
 
-          const token = createJWT(user);
+            const token = createJWT(user);
 
-          // return to routing (/auth/login)
-          done(null, token, user);
+            // return to routing (/auth/login)
+            done(null, token, user);
+          });
         } else {
           // user is new, add to database
           const newUser = new User();
@@ -37,9 +40,8 @@ module.exports = new SpotifyStrategy(
 
           newUser.save(err => {
             if (err) throw err;
-            console.log(newUser);
 
-            const token = createJWT(newUser); // does the new user have an id?
+            const token = createJWT(newUser);
 
             return done(null, token, newUser);
           });
