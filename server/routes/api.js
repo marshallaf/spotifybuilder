@@ -38,9 +38,7 @@ router.get('/playlists', (req, res) => {
       user.playlists = newPlaylists;
       user.save(err => {
         if (err) throw err;
-        res.status(200).json({
-          playlists: spotifyPlaylists,
-        });
+        res.status(200).json(spotifyPlaylists);
       });
     });
   });
@@ -65,9 +63,6 @@ function getSpotifyPlaylists(userId, accessToken, cb) {
   .then(response => {
     if (response.status === 200) {
       const playlists = response.data.items;
-      console.log(response.data.items[0].name);
-      console.log(response.data.total);
-      console.log(response.data.next);
       return cb(playlists);
     }
   })

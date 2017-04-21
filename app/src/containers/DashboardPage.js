@@ -1,5 +1,6 @@
 import React from 'react';
 import axios from 'axios';
+import PlaylistBox from './PlaylistBox';
 
 class DashboardPage extends React.Component {
   constructor() {
@@ -8,9 +9,11 @@ class DashboardPage extends React.Component {
     this.state = {
       displayName: '',
       imageUrl: '',
+      playlists: [],
     };
 
     this.userApi = this.userApi.bind(this);
+    this.playlistApi = this.playlistApi.bind(this);
   }
 
   userApi() {
@@ -30,7 +33,11 @@ class DashboardPage extends React.Component {
 
   playlistApi() {
     axios.get('/api/playlists', { withCredentials: true })
-      .then(response => console.log(response.data));
+      .then(response => this.setState({ playlists: response.data }));
+  }
+
+  changePlaylistRole(e) {
+    console.log(e.target);
   }
 
   render() {
@@ -46,6 +53,18 @@ class DashboardPage extends React.Component {
           <div>
             <h2>Hello, {this.state.displayName}!</h2>
             <img src={this.state.imageUrl} />
+          </div>
+        }
+        <br />
+        {this.state.playlists.length !== 0 &&
+          <div>
+            {this.state.playlists.map(playlist => (
+              <PlaylistBox
+                name={playlist.name}
+                role={playlist.role}
+                changeRole={this.changePlaylistRole} 
+              />
+            ))}
           </div>
         }
       </div>
