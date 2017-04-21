@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const mongoose = require('mongoose');
 const passport = require('passport');
+const cookieParser = require('cookie-parser');
 
 // load environment variables
 require('dotenv').load();
@@ -16,6 +17,8 @@ app.set('port', (process.env.PORT || 8080));
 
 // enable parsing of http body
 app.use(bodyParser.urlencoded({extended: false}));
+// enable parsing of cookies
+app.use(cookieParser());
 
 // set location of static files to serve
 // html and css
@@ -29,6 +32,7 @@ passport.use('spotify', require('./passport/spotify'));
 
 // server routing
 app.use('/auth', require('./routes/auth'));
+app.use('/api', require('./middleware/authenticate'));
 app.use('/api', require('./routes/api'));
 
 // ensure all routes typed into the address bar are routed to React-Router (at the entry)

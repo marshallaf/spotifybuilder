@@ -18,7 +18,7 @@ module.exports = new SpotifyStrategy(
           // user was found, update their tokens
           user.spotify.accessToken = accessToken;
           user.spotify.refreshToken = refreshToken;
-          console.log(user);
+          //console.log(user);
 
           const token = createJWT(user);
 
