@@ -1,11 +1,13 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
+const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const User = require('../models/users');
 
 const router = express.Router();
 router.use(cookieParser());
+router.use(bodyParser.json());
 
 // GET /api/user, gets user from header and returns to requester
 router.get('/user', (req, res) => {
@@ -38,8 +40,27 @@ router.get('/playlists', (req, res) => {
       user.playlists = newPlaylists;
       user.save(err => {
         if (err) throw err;
-        res.status(200).json(spotifyPlaylists);
+        return res.status(200).json(spotifyPlaylists);
       });
+    });
+  });
+});
+
+router.post('/playlists', (req, res) => {
+  if (!req.user) return res.status(401).end();
+  if (!req.body.data.playlists) return res.status(400).end();
+
+  // remove playlists that don't have a role
+  const newPlaylists = req.body.data.playlists.filter(playlist => playlist.role !== 'none');
+
+  User.findById(req.user._id, 'playlists', (err, user) => {
+    if (err) throw err;
+
+    // store playlists
+    user.playlists = newPlaylists;
+    user.save(err => {
+      if (err) throw err;
+      return res.status(200).end();
     });
   });
 });

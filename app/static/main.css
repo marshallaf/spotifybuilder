@@ -1,4 +1,24 @@
 .playlist {
   display: flex;
-  background: lightblue;
+  border: 1px solid #eee;
+  padding: 4px;
+  border-radius: 3px;
+  max-width: 30%;
+  margin: 1px;
+}
+
+.role {
+  width: 100px;
+  border-radius: 3px;
+  color: white;
+  font-size: .75em;
+  text-decoration: capitalize;
+}
+
+.role.sheep {
+  background-color: #13a084;
+}
+
+.role.barn {
+  background-color: #a01b74;
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import axios from 'axios';
-import PlaylistBox from './PlaylistBox';
+import PlaylistCtr from './PlaylistCtr';
 
 class DashboardPage extends React.Component {
   constructor() {
@@ -10,10 +10,14 @@ class DashboardPage extends React.Component {
       displayName: '',
       imageUrl: '',
       playlists: [],
+      barnIndex: -1,
+      saveSuccess: false,
     };
 
     this.userApi = this.userApi.bind(this);
     this.playlistApi = this.playlistApi.bind(this);
+    this.changePlaylistRole = this.changePlaylistRole.bind(this);
+    this.savePlaylists = this.savePlaylists.bind(this);
   }
 
   userApi() {
@@ -36,8 +40,24 @@ class DashboardPage extends React.Component {
       .then(response => this.setState({ playlists: response.data }));
   }
 
-  changePlaylistRole(e) {
-    console.log(e.target);
+  changePlaylistRole(position, newRole) {
+    let newPlaylists = [...this.state.playlists];
+    newPlaylists[position].role = newRole;
+
+    let barnIndex = this.state.barnIndex;
+    if (newRole == 'barn') {
+      barnIndex = position;
+      if (this.state.barnIndex != -1) newPlaylists[this.state.barnIndex].role = 'none';
+    } else if (this.state.barnIndex == position) barnIndex = -1;
+
+    this.setState({
+      playlists: newPlaylists,
+      barnIndex: barnIndex,
+    });
+  }
+
+  savePlaylists() {
+    axios.post('/api/playlists', { withCredentials: true, data: {playlists: this.state.playlists}});
   }
 
   render() {
@@ -56,15 +76,20 @@ class DashboardPage extends React.Component {
           </div>
         }
         <br />
-        {this.state.playlists.length !== 0 &&
+        {this.state.playlists.length !== 0 && 
           <div>
-            {this.state.playlists.map(playlist => (
-              <PlaylistBox
-                name={playlist.name}
-                role={playlist.role}
-                changeRole={this.changePlaylistRole} 
-              />
-            ))}
+            <div>
+              {this.state.playlists.map((playlist, index) => (
+                <PlaylistCtr
+                  name={playlist.name}
+                  role={playlist.role}
+                  pos={index}
+                  barn={index == this.state.barnIndex}
+                  changeRole={this.changePlaylistRole} 
+                />
+              ))}
+            </div>
+            <button onClick={this.savePlaylists}>Save playlists</button>
           </div>
         }
       </div>
