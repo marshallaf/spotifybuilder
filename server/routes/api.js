@@ -50,20 +50,51 @@ router.post('/playlists', (req, res) => {
   if (!req.user) return res.status(401).end();
   if (!req.body.data.playlists) return res.status(400).end();
 
-  // remove playlists that don't have a role
+  saveUserPlaylists(req.user, req.body.data.playlists)
+  .then(() => res.status(200).end());
+});
+
+router.post('/aggregate', (req, res) => {
+  if (!req.user) return res.status(401).end();
+  if (!req.body.data.playlists) return res.status(400).end();
+
+  // this is redundant, so take it out of here, or from saveUserPlaylists
   const newPlaylists = req.body.data.playlists.filter(playlist => playlist.role !== 'none');
 
-  User.findById(req.user._id, 'playlists', (err, user) => {
-    if (err) throw err;
+  const barn = newPlaylists.find(playlist => playlist.role === 'barn');
 
-    // store playlists
-    user.playlists = newPlaylists;
-    user.save(err => {
-      if (err) throw err;
-      return res.status(200).end();
+  console.log(newPlaylists[1]);
+
+  const promises = new Array(saveUserPlaylists(req.user, newPlaylists), 
+                             getPlaylistTracks(req.user.spotify.id, req.user.spotify.accessToken, newPlaylists[1]));
+  Promise.all(promises)
+  .then(resArr => {
+    console.log(resArr[1]);
+    const idsToAdd = resArr[1].map(track => `spotify:track:${track.track.id}`);
+    addTracksToBarn(req.user.spotify.id, req.user.spotify.accessToken, barn, idsToAdd)
+    .then(() => console.log('success!'))
+    .catch(err => console.log(err));
+    res.status(200).end();
+  });
+})
+
+function saveUserPlaylists(user, playlists) {
+  // remove playlists that don't have a role
+  const newPlaylists = playlists.filter(playlist => playlist.role !== 'none');
+
+  return new Promise((resolve, reject) => {
+    User.findById(user._id, 'playlists', (err, foundUser) => {
+      if (err) reject(err);
+
+      // store playlists
+      foundUser.playlists = newPlaylists;
+      foundUser.save(err => {
+        if (err) reject(err);
+        resolve();
+      });
     });
   });
-});
+}
 
 function getSpotifyPlaylists(userId, accessToken, cb) {
   // create a base axios config
@@ -90,6 +121,48 @@ function getSpotifyPlaylists(userId, accessToken, cb) {
   .catch(err => {
     console.log(err.response.data.error);
     return cb(null);
+  });
+}
+
+function getPlaylistTracks(userId, accessToken, playlist) {
+
+  const spotifyReq = axios.create({
+    method: 'get',
+    url: `https://api.spotify.com/v1/users/${userId}/playlists/${playlist.id}/tracks`,
+    headers: {'Authorization': `Bearer ${accessToken}`},
+    params: { fields: 'items(track(name,artists(name),id,explicit))'},
+  });
+
+  return new Promise((resolve, reject) => {
+    spotifyReq()
+    .then(response => {
+      if (response.status === 200) {
+        const tracks = response.data.items;
+        resolve(tracks);
+      } else reject();
+    })
+    .catch(err => {
+      console.log(err.response.data.error);
+      reject();
+    });
+  });
+}
+
+function addTracksToBarn(userId, accessToken, barn, tracks) {
+  
+  return new Promise((resolve, reject) => {
+    axios.post(`https://api.spotify.com/v1/users/${userId}/playlists/${barn.id}/tracks`,
+                     {uris: tracks},
+                     {headers: {'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json'}})
+    .then(response => {
+      console.log(response.config);
+      if (response.status === 201) resolve();
+      else reject('response received but it wasn\'t good');
+    })
+    .catch(err => {
+      console.log(err);
+      reject('error during request');
+    });
   });
 }
 

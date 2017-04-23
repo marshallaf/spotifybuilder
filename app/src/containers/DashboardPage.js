@@ -18,6 +18,7 @@ class DashboardPage extends React.Component {
     this.playlistApi = this.playlistApi.bind(this);
     this.changePlaylistRole = this.changePlaylistRole.bind(this);
     this.savePlaylists = this.savePlaylists.bind(this);
+    this.aggregate = this.aggregate.bind(this);
   }
 
   userApi() {
@@ -37,7 +38,10 @@ class DashboardPage extends React.Component {
 
   playlistApi() {
     axios.get('/api/playlists', { withCredentials: true })
-      .then(response => this.setState({ playlists: response.data }));
+    .then(response => {
+      const barnIndex = response.data.findIndex(playlist => playlist.role == 'barn');
+      this.setState({ playlists: response.data, barnIndex: barnIndex })
+    });
   }
 
   changePlaylistRole(position, newRole) {
@@ -58,6 +62,10 @@ class DashboardPage extends React.Component {
 
   savePlaylists() {
     axios.post('/api/playlists', { withCredentials: true, data: {playlists: this.state.playlists}});
+  }
+
+  aggregate() {
+    axios.post('/api/aggregate', { withCredentials: true, data: {playlists: this.state.playlists}});
   }
 
   render() {
@@ -90,6 +98,7 @@ class DashboardPage extends React.Component {
               ))}
             </div>
             <button onClick={this.savePlaylists}>Save playlists</button>
+            <button onClick={this.aggregate}>Bundle playlists</button>
           </div>
         }
       </div>
