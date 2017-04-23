@@ -3,6 +3,7 @@ const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
+const PromiseThrottle = require('promise-throttle');
 const User = require('../models/users');
 
 const router = express.Router();
@@ -25,7 +26,15 @@ router.get('/playlists', (req, res) => {
 
   getSpotifyPlaylists(req.user.spotify.id, req.user.spotify.accessToken, playlists => {
     if (!playlists) return res.status(404).end();
-    const spotifyPlaylists = playlists.map(playlist => ({name: playlist.name, id: playlist.id, role: 'none'}));
+    const spotifyPlaylists = playlists.map(playlist => {
+      return {
+        name: playlist.name,
+        id: playlist.id, 
+        href: playlist.href, 
+        owned: playlist.owner.id == req.user.spotify.id,
+        role: 'none'
+      };
+    });
     User.findById(req.user._id, 'playlists', (err, user) => {
       if (err) throw err;
       // determine playlist roles
@@ -55,41 +64,51 @@ router.post('/playlists', (req, res) => {
 });
 
 router.post('/aggregate', (req, res) => {
+  console.log('aggregate starting');
   if (!req.user) return res.status(401).end();
   if (!req.body.data.playlists) return res.status(400).end();
 
   // this is redundant, so take it out of here, or from saveUserPlaylists
   const newPlaylists = req.body.data.playlists.filter(playlist => playlist.role !== 'none');
 
-  const barn = newPlaylists.find(playlist => playlist.role === 'barn');
-
-  console.log(newPlaylists[1]);
+  const barnIndex = newPlaylists.findIndex(playlist => playlist.role === 'barn');
+  const barn = newPlaylists[barnIndex];
+  newPlaylists.splice(barnIndex, 1);
 
   const promises = new Array(saveUserPlaylists(req.user, newPlaylists), 
-                             getPlaylistTracks(req.user.spotify.id, req.user.spotify.accessToken, newPlaylists[1]));
+                             getAllPlaylistTracks(req.user.spotify.id, req.user.spotify.accessToken, newPlaylists));
+
+  // we have all the tracks from the playlists, and we've save the playlists to the db
+  // now we hit the Spotify API to add them to the barn playlist
   Promise.all(promises)
   .then(resArr => {
-    console.log(resArr[1]);
-    const idsToAdd = resArr[1].map(track => `spotify:track:${track.track.id}`);
-    addTracksToBarn(req.user.spotify.id, req.user.spotify.accessToken, barn, idsToAdd)
+    // returned is an array of arrays of tracks
+    // this puts them into one large array of all the tracks
+    const idsToAdd = resArr[1].reduce((allTracks, trackList) => {
+      return allTracks.concat(trackList.map(track => `spotify:track:${track.track.id}`));
+    }, []);
+
+    addAllTracksToBarn(req.user.spotify.id, req.user.spotify.accessToken, barn, idsToAdd)
     .then(() => console.log('success!'))
-    .catch(err => console.log(err));
+    .catch(err => console.log('error occurred in addAllTracksToBarn', err));
     res.status(200).end();
+  })
+  .catch(err => {
+    console.log('error occurred either in saveUserPlaylists or getAllPlaylistTracks', err);
+    res.status(500).end();
   });
-})
+});
 
 function saveUserPlaylists(user, playlists) {
-  // remove playlists that don't have a role
-  const newPlaylists = playlists.filter(playlist => playlist.role !== 'none');
 
   return new Promise((resolve, reject) => {
     User.findById(user._id, 'playlists', (err, foundUser) => {
-      if (err) reject(err);
+      if (err) reject('error finding user: ' + err);
 
       // store playlists
-      foundUser.playlists = newPlaylists;
+      foundUser.playlists = playlists;
       foundUser.save(err => {
-        if (err) reject(err);
+        if (err) reject('error saving user: ' + err);
         resolve();
       });
     });
@@ -124,11 +143,29 @@ function getSpotifyPlaylists(userId, accessToken, cb) {
   });
 }
 
-function getPlaylistTracks(userId, accessToken, playlist) {
+function getAllPlaylistTracks(userId, accessToken, playlists) {
+  const promiseThrottle = new PromiseThrottle({
+    requestsPerSecond: 10,
+    promiseImplementation: Promise,
+  });
 
+  const promises = playlists.map(playlist => promiseThrottle.add(
+    // you can either do it like this:
+    getPlaylistTracks.bind(this, userId, accessToken, playlist))
+    // or in an anon no-arg function def:
+    // function() {
+    //    return getPlaylistTracks(userId, accessToken, playlist);
+    // }
+    // I'm not sure of the pros/cons of each, if any.
+  );
+
+  return Promise.all(promises);
+}
+
+function getPlaylistTracks(userId, accessToken, playlist) {
   const spotifyReq = axios.create({
     method: 'get',
-    url: `https://api.spotify.com/v1/users/${userId}/playlists/${playlist.id}/tracks`,
+    url: `${playlist.href}/tracks`,
     headers: {'Authorization': `Bearer ${accessToken}`},
     params: { fields: 'items(track(name,artists(name),id,explicit))'},
   });
@@ -139,23 +176,21 @@ function getPlaylistTracks(userId, accessToken, playlist) {
       if (response.status === 200) {
         const tracks = response.data.items;
         resolve(tracks);
-      } else reject();
+      } else reject('response received on getting tracks, but it was bad');
     })
     .catch(err => {
-      console.log(err.response.data.error);
-      reject();
+      console.log(err.config);
+      reject('error response received on getting tracks: ' + err)
     });
   });
 }
 
 function addTracksToBarn(userId, accessToken, barn, tracks) {
-  
   return new Promise((resolve, reject) => {
     axios.post(`https://api.spotify.com/v1/users/${userId}/playlists/${barn.id}/tracks`,
                      {uris: tracks},
                      {headers: {'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json'}})
     .then(response => {
-      console.log(response.config);
       if (response.status === 201) resolve();
       else reject('response received but it wasn\'t good');
     })
@@ -164,6 +199,35 @@ function addTracksToBarn(userId, accessToken, barn, tracks) {
       reject('error during request');
     });
   });
+}
+
+function addAllTracksToBarn(userId, accessToken, barn, tracks) {
+  const promiseThrottle = new PromiseThrottle({
+    requestsPerSecond: 10,
+    promiseImplementation: Promise,
+  });
+
+  const numTracks = tracks.length;
+  const promises = [];
+  for (let tracksAdded = 0; tracksAdded <= numTracks; tracksAdded += 100) {
+    if (tracksAdded + 99 <= numTracks) {
+      promises.push(
+        promiseThrottle.add(
+          addTracksToBarn.bind(this, userId, accessToken, barn, tracks.slice(tracksAdded, tracksAdded + 100))
+        )
+      );
+    } else {
+      promises.push(
+        promiseThrottle.add(
+          addTracksToBarn.bind(this, userId, accessToken, barn, tracks.slice(tracksAdded))
+        )
+      );
+    }
+  }
+
+  console.log('adding all tracks, promises: ', promises);
+
+  return Promise.all(promises);
 }
 
 module.exports = router;
