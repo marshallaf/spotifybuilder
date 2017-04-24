@@ -5,8 +5,10 @@ const mongoose = require('mongoose');
 const passport = require('passport');
 const cookieParser = require('cookie-parser');
 
-// load environment variables
-require('dotenv').load();
+// load environment variables if in dev
+if (process.env.DEV_MODE == 1) {
+  require('dotenv').load();
+}
 
 // connect to database
 mongoose.connect(process.env.MONGO_URI);
