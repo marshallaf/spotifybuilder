@@ -7,7 +7,7 @@
     "start": "node ./server/index.js",
     "start-dev": "env DEV_MODE=1 nodemon --use_strict ./server/index.js",
     "build": "webpack",
-    "heroku-postbuild": "webpack -p --config ./webpack.config.js --progress"
+    "heroku-postbuild": "webpack -p --config ./webpack.config.prod.js --progress"
   },
   "author": "Andrew Marshall",
   "license": "ISC",
