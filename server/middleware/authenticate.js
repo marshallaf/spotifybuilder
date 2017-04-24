@@ -25,8 +25,7 @@ module.exports = (req, res, next) => {
         console.log('error locating user');
         return res.status(401).end();
       }
-      
-      console.log(user);
+
       req.user = user;
       return next();
     });

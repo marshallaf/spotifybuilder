@@ -89,7 +89,6 @@ router.post('/aggregate', (req, res) => {
       return allTracks.concat(trackList.map(track => track.track));
     }, []);
 
-    console.log(tracks[0].artists);
     // remove duplicates from the full list of tracks
     const seenMD5s = {};
     const uniqueTracks = [];
@@ -101,9 +100,8 @@ router.post('/aggregate', (req, res) => {
       }
     });
 
-    console.log(uniqueTracks[0]);
+    // create an array of the song URIs that the Spotify API expects
     const idsToAdd = uniqueTracks.map(track => `spotify:track:${track.id}`);
-    console.log(idsToAdd.slice(0,3));
 
     addAllTracksToBarn(req.user.spotify.id, req.user.spotify.accessToken, barn, idsToAdd)
     .then(() => console.log('success!'))
