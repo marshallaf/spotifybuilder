@@ -6,13 +6,6 @@ import DashboardPage from './containers/DashboardPage.js';
 import LoginPage from './containers/LoginPage.js';
 import './main.scss';
 
-// a test component
-const AppUp = () => (
-  <div>App is up!
-  <a href="./auth/spotify">Login with Spotify?</a>
-  </div>
-);
-
 // the root react-router that handles all client side (non-api/auth) routing
 const MainRouter = () => (
   <Router>
