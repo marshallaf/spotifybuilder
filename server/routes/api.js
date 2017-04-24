@@ -85,9 +85,15 @@ router.post('/aggregate', (req, res) => {
     // returned is an array of arrays of tracks
     // this puts them into one large array of all the tracks
     const tracks = resArr[1].reduce((allTracks, trackList) => {
-      // return allTracks.concat(trackList.map(track => `spotify:track:${track.track.id}`));
       return allTracks.concat(trackList.map(track => track.track));
     }, []);
+
+    // sorting by explicit will make the de-dupe step to prefer the explicit version, if there are both
+    tracks.sort((a, b) => {
+      if (a.explicit && b.explicit) return 0;
+      else if (!a.explicit) return 1;
+      else return -1;
+    });
 
     // remove duplicates from the full list of tracks
     const seenMD5s = {};
@@ -96,57 +102,52 @@ router.post('/aggregate', (req, res) => {
       track.md5 = md5(`${track.name}:${track.artists[0].name}`);
       if (!(track.md5 in seenMD5s)) {
         seenMD5s[track.md5] = true;
-        uniqueTracks.push(track);
+        uniqueTracks.push({
+          name: track.name,
+          artist: track.artists[0].name,
+          spotifyId: track.id,
+          _id: track.md5,
+        });
       }
     });
 
-    // create an array of the song URIs that the Spotify API expects
-    const idsToAdd = uniqueTracks.map(track => `spotify:track:${track.id}`);
+    User.findById(req.user._id, 'seenTracks', (err, user) => {
+      if (err) {
+        console.log('error reading database', err);
+        res.status(500).end();
+      }
 
-    addAllTracksToBarn(req.user.spotify.id, req.user.spotify.accessToken, barn, idsToAdd)
-    .then(() => console.log('success!'))
-    .catch(err => console.log('error occurred in addAllTracksToBarn', err));
-    res.status(200).end();
+      // removes tracks the user has bundled in the past
+      const doubleUniqueTracks = uniqueTracks.filter(track => {
+        return !(user.seenTracks.id(track._id));
+      });
+
+      // create an array of the song URIs that the Spotify API expects
+      const idsToAdd = doubleUniqueTracks.map(track => `spotify:track:${track.spotifyId}`);
+
+      addAllTracksToBarn(req.user.spotify.id, req.user.spotify.accessToken, barn, idsToAdd)
+      .then(() => {
+        console.log('saving tracks');
+        user.seenTracks.push(...doubleUniqueTracks);
+        user.save(err => {
+          if (err) {
+            console.log('/api/aggregate::', err, '::');
+            return res.status(500).end();
+          }
+          return res.status(200).end();
+        });
+      })
+      .catch(err => {
+        console.log('/api/aggregate::', err, '::');
+        return res.status(500).end();
+      });
+    });
   })
   .catch(err => {
-    console.log('error occurred either in saveUserPlaylists or getAllPlaylistTracks', err);
+    console.log('/api/aggregate::', err, '::');
     res.status(500).end();
   });
 });
-
-router.post('/test', (req, res) => {
-  if (!req.user) return res.status(401).end();
-  if (!req.body.data.playlists) return res.status(400).end();
-
-  const newPlaylists = req.body.data.playlists.filter(playlist => playlist.role !== 'none');
-
-  // getPlaylistTracks(req.user._id, req.user.spotify.accessToken, newPlaylists[0])
-  // .then(tracks => {
-  //   console.log('how many tracks?', tracks.length);
-  //   console.log('first 3:', tracks.slice(0,3));
-  //   console.log('last 3:', tracks.slice(tracks.length-3));
-  //   res.status(200).end();
-  // })
-  // .catch(err => {
-  //   console.log(err);
-  //   res.status(500).end();
-  // });
-
-  getAllPlaylistTracks(req.user._id, req.user.spotify.accessToken, newPlaylists)
-  .then(playlists => {
-    const tracks = playlists.reduce((allTracks, playlist) => {
-      return allTracks.concat(playlist);
-    }, []);
-    console.log('how many tracks?', tracks.length);
-    console.log('first 3:', tracks.slice(0,3));
-    console.log('last 3:', tracks.slice(tracks.length-3));
-    res.status(200).end();
-  })
-  .catch(err => {
-    console.log(err);
-    res.status(500).end();
-  });
-})
 
 function saveUserPlaylists(user, playlists) {
 
@@ -172,11 +173,7 @@ function getSpotifyPlaylists(userId, accessToken, cb) {
     headers: {'Authorization': `Bearer ${accessToken}`},
   });
 
-  // TODO: since I don't have more than 50 playlists, this isn't a problem for me, but...
-  // it only lets you get 50 at a time, so we need to use a promise.all type structure to get all the pages
-  // and it probably rate-limits you so you'll need to stagger the promises
-  // see JMPerez/spotify-dedup/app/scripts/main.js:226 (promisesForPages) for paging
-  // and npm promise-throttle for staggering the requests
+  // TODO: refactor to use paging and promise-throttle
 
   // actually make the request
   spotifyReq()
@@ -273,8 +270,6 @@ function addAllTracksToBarn(userId, accessToken, barn, tracks) {
       );
     }
   }
-
-  console.log('adding all tracks, promises: ', promises);
 
   return Promise.all(promises);
 }
