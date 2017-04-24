@@ -1,6 +1,7 @@
 import React from 'react';
 import axios from 'axios';
 import PlaylistCtr from './PlaylistCtr';
+import UserInfo from '../components/UserInfo';
 
 class DashboardPage extends React.Component {
   constructor() {
@@ -14,30 +15,26 @@ class DashboardPage extends React.Component {
       saveSuccess: false,
     };
 
-    this.userApi = this.userApi.bind(this);
-    this.playlistApi = this.playlistApi.bind(this);
     this.changePlaylistRole = this.changePlaylistRole.bind(this);
     this.savePlaylists = this.savePlaylists.bind(this);
     this.aggregate = this.aggregate.bind(this);
-    this.test = this.test.bind(this);
   }
 
-  userApi() {
-    fetch('/api/user', { credentials: 'include' })
-      .then(response => {
-        if (response.status === 200) {
-          response.json()
-            .then(user => {
-              this.setState({
-                displayName: user.spotify.displayName,
-                imageUrl: user.spotify.image,
-              });
-            });
-        }
+  componentWillMount() {
+    // get user information
+    axios.get('/api/user', { withCredentials: true })
+    .then(response => {
+      this.setState({
+        displayName: response.data.spotify.displayName,
+        imageUrl: response.data.spotify.image,
       });
-  }
+    })
+    .catch(err => {
+      if (err.response.data.error) console.error(err.response.data.error);
+      else console.error('error fetching user data');
+    });
 
-  playlistApi() {
+    // get playlists and current bundle roles
     axios.get('/api/playlists', { withCredentials: true })
     .then(response => {
       const barnIndex = response.data.findIndex(playlist => playlist.role == 'barn');
@@ -69,42 +66,26 @@ class DashboardPage extends React.Component {
     axios.post('/api/aggregate', { withCredentials: true, data: {playlists: this.state.playlists}});
   }
 
-  test() {
-    axios.post('/api/test', { withCredentials: true, data: {playlists: this.state.playlists}});
-  }
-
   render() {
     return (
-      <div>
-        <h1>Dashboard Page</h1>
-        <br />
-        <span onClick={this.userApi}>Hit the user api</span>
-        <br />
-        <span onClick={this.playlistApi}>Hit the playlist api</span>
-        <br />
-        {this.state.displayName && 
-          <div>
-            <h2>Hello, {this.state.displayName}!</h2>
-            <img src={this.state.imageUrl} />
-          </div>
-        }
-        <br />
+      <div className='container'>
+        <UserInfo
+          displayName={this.state.displayName}
+          imageUrl={this.state.imageUrl}
+          save={this.savePlaylists}
+          bundle={this.aggregate}
+        />
         {this.state.playlists.length !== 0 && 
-          <div>
-            <div>
-              {this.state.playlists.map((playlist, index) => (
-                <PlaylistCtr
-                  name={playlist.name}
-                  role={playlist.role}
-                  pos={index}
-                  barn={index == this.state.barnIndex}
-                  changeRole={this.changePlaylistRole} 
-                />
-              ))}
-            </div>
-            <button onClick={this.savePlaylists}>Save playlists</button>
-            <button onClick={this.aggregate}>Bundle playlists</button>
-            <button onClick={this.test}>Test something</button>
+          <div className='playlists-container'>
+            {this.state.playlists.map((playlist, index) => (
+              <PlaylistCtr
+                name={playlist.name}
+                role={playlist.role}
+                pos={index}
+                barn={index == this.state.barnIndex}
+                changeRole={this.changePlaylistRole} 
+              />
+            ))}
           </div>
         }
       </div>

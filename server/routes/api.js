@@ -75,10 +75,10 @@ router.post('/aggregate', (req, res) => {
   const barn = newPlaylists[barnIndex];
   newPlaylists.splice(barnIndex, 1);
 
-  const promises = new Array(saveUserPlaylists(req.user, newPlaylists), 
+  const promises = new Array(saveUserPlaylists(req.user, [...newPlaylists, barn]), 
                              getAllPlaylistTracks(req.user.spotify.id, req.user.spotify.accessToken, newPlaylists));
 
-  // we have all the tracks from the playlists, and we've save the playlists to the db
+  // we have all the tracks from the playlists, and we've saved the playlists to the db
   // now we hit the Spotify API to add them to the barn playlist
   Promise.all(promises)
   .then(resArr => {
