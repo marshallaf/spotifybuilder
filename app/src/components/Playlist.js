@@ -6,15 +6,10 @@ const Playlist = ({
   handleBarn,
   handleSheep
 }) => (
-  <div className='playlist'>
-    <button onClick={handleBarn}>Barn!</button>
-    <button onClick={handleSheep}>Sheep!</button>
-    <div className={`role ${role}`}>
-    {role !== 'none' && 
-      role
-    }
-    </div>
-    <div>{name}</div>
+  <div className={`playlist ${role}`}>
+    <button className={`bundle ${role=='barn' ? 'highlight' : ''} ${role=='sheep' ? 'faded' : ''}`} onClick={handleBarn}>Bundle</button>
+    <button className={`add-list ${role=='sheep' ? 'highlight' : ''} ${role=='barn' ? 'faded' : ''}`} onClick={handleSheep}>Add</button>
+    <div className='playlist-name'>{name}</div>
   </div>
 );
 
