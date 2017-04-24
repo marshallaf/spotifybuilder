@@ -1,0 +1,97 @@
+$spotify-black: #191414;
+$spotify-green: #1DB954;
+
+body {
+  font-family: 'Lato', sans-serif;
+}
+
+.playlist {
+  display: flex;
+  border: 1px solid #eee;
+  padding: 4px;
+  border-radius: 5px;
+  margin: 1px;
+}
+
+.role {
+  width: 100px;
+  border-radius: 3px;
+  color: white;
+  font-size: .75em;
+  text-decoration: capitalize;
+}
+
+.role.sheep {
+  background-color: #13a084;
+}
+
+.role.barn {
+  background-color: #a01b74;
+}
+
+.info-container {
+  border-radius: 5px;
+  border: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+}
+
+.container {
+  display: flex;
+  align-items: flex-start;
+}
+
+.playlist-container {
+  max-height: 100vh;
+  display: flex;
+  flex-flow: column wrap;
+}
+
+.button-container {
+  display: flex;
+
+  & button {
+    height: 32px;
+    width: 107px;
+    border-radius: 16px;
+    margin: 12px;
+    border: none;
+    color: white;
+    text-transform: uppercase;
+    font-size: 0.8em;
+    font-weight: bold;
+    &:hover {
+      cursor: pointer;
+    }
+
+    &.save {
+      background-color: $spotify-black;
+      &:hover {
+        background-color: lighten($spotify-black, 10%);
+      }
+    }
+
+    &.bundle {
+      background-color: $spotify-green;
+      &:hover {
+        background-color: lighten($spotify-green, 10%);
+      }
+    }
+  }
+}
+
+.profile-pic {
+  overflow: hidden;
+  height: 200px;
+  width: 200px;
+  border-radius: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  & img {
+    width: 200px;
+  }
+}

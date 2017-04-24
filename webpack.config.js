@@ -15,6 +15,15 @@ module.exports = {
         options: {
           presets: [ 'es2015', 'react' ],
         },
+      },
+      {
+        test: /\.scss$/,
+        include: path.join(__dirname, '/app/src'),
+        use: [
+          { loader: 'style-loader' },
+          { loader: 'css-loader' },
+          { loader: 'sass-loader' }
+        ],
       }
     ],
   },

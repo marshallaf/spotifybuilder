@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Route, Redirect } from 'react-router-dom';
 import HomePage from './containers/HomePage.js';
 import DashboardPage from './containers/DashboardPage.js';
 import LoginPage from './containers/LoginPage.js';
+import './main.scss';
 
 // a test component
 const AppUp = () => (
