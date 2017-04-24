@@ -19,6 +19,7 @@ class DashboardPage extends React.Component {
     this.changePlaylistRole = this.changePlaylistRole.bind(this);
     this.savePlaylists = this.savePlaylists.bind(this);
     this.aggregate = this.aggregate.bind(this);
+    this.test = this.test.bind(this);
   }
 
   userApi() {
@@ -68,6 +69,10 @@ class DashboardPage extends React.Component {
     axios.post('/api/aggregate', { withCredentials: true, data: {playlists: this.state.playlists}});
   }
 
+  test() {
+    axios.post('/api/test', { withCredentials: true, data: {playlists: this.state.playlists}});
+  }
+
   render() {
     return (
       <div>
@@ -99,6 +104,7 @@ class DashboardPage extends React.Component {
             </div>
             <button onClick={this.savePlaylists}>Save playlists</button>
             <button onClick={this.aggregate}>Bundle playlists</button>
+            <button onClick={this.test}>Test something</button>
           </div>
         }
       </div>

@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const PromiseThrottle = require('promise-throttle');
+const md5 = require('md5');
 const User = require('../models/users');
 
 const router = express.Router();
@@ -64,7 +65,6 @@ router.post('/playlists', (req, res) => {
 });
 
 router.post('/aggregate', (req, res) => {
-  console.log('aggregate starting');
   if (!req.user) return res.status(401).end();
   if (!req.body.data.playlists) return res.status(400).end();
 
@@ -84,9 +84,26 @@ router.post('/aggregate', (req, res) => {
   .then(resArr => {
     // returned is an array of arrays of tracks
     // this puts them into one large array of all the tracks
-    const idsToAdd = resArr[1].reduce((allTracks, trackList) => {
-      return allTracks.concat(trackList.map(track => `spotify:track:${track.track.id}`));
+    const tracks = resArr[1].reduce((allTracks, trackList) => {
+      // return allTracks.concat(trackList.map(track => `spotify:track:${track.track.id}`));
+      return allTracks.concat(trackList.map(track => track.track));
     }, []);
+
+    console.log(tracks[0].artists);
+    // remove duplicates from the full list of tracks
+    const seenMD5s = {};
+    const uniqueTracks = [];
+    tracks.forEach(track => {
+      track.md5 = md5(`${track.name}:${track.artists[0].name}`);
+      if (!(track.md5 in seenMD5s)) {
+        seenMD5s[track.md5] = true;
+        uniqueTracks.push(track);
+      }
+    });
+
+    console.log(uniqueTracks[0]);
+    const idsToAdd = uniqueTracks.map(track => `spotify:track:${track.id}`);
+    console.log(idsToAdd.slice(0,3));
 
     addAllTracksToBarn(req.user.spotify.id, req.user.spotify.accessToken, barn, idsToAdd)
     .then(() => console.log('success!'))
@@ -98,6 +115,40 @@ router.post('/aggregate', (req, res) => {
     res.status(500).end();
   });
 });
+
+router.post('/test', (req, res) => {
+  if (!req.user) return res.status(401).end();
+  if (!req.body.data.playlists) return res.status(400).end();
+
+  const newPlaylists = req.body.data.playlists.filter(playlist => playlist.role !== 'none');
+
+  // getPlaylistTracks(req.user._id, req.user.spotify.accessToken, newPlaylists[0])
+  // .then(tracks => {
+  //   console.log('how many tracks?', tracks.length);
+  //   console.log('first 3:', tracks.slice(0,3));
+  //   console.log('last 3:', tracks.slice(tracks.length-3));
+  //   res.status(200).end();
+  // })
+  // .catch(err => {
+  //   console.log(err);
+  //   res.status(500).end();
+  // });
+
+  getAllPlaylistTracks(req.user._id, req.user.spotify.accessToken, newPlaylists)
+  .then(playlists => {
+    const tracks = playlists.reduce((allTracks, playlist) => {
+      return allTracks.concat(playlist);
+    }, []);
+    console.log('how many tracks?', tracks.length);
+    console.log('first 3:', tracks.slice(0,3));
+    console.log('last 3:', tracks.slice(tracks.length-3));
+    res.status(200).end();
+  })
+  .catch(err => {
+    console.log(err);
+    res.status(500).end();
+  });
+})
 
 function saveUserPlaylists(user, playlists) {
 
@@ -163,24 +214,24 @@ function getAllPlaylistTracks(userId, accessToken, playlists) {
 }
 
 function getPlaylistTracks(userId, accessToken, playlist) {
-  const spotifyReq = axios.create({
+  
+  const reqConfig = {
     method: 'get',
     url: `${playlist.href}/tracks`,
     headers: {'Authorization': `Bearer ${accessToken}`},
-    params: { fields: 'items(track(name,artists(name),id,explicit))'},
-  });
+    params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100},
+  };
 
   return new Promise((resolve, reject) => {
-    spotifyReq()
-    .then(response => {
-      if (response.status === 200) {
-        const tracks = response.data.items;
+    pagePromises(reqConfig)
+    .then(promises => {
+      Promise.all(promises)
+      .then(resArr => {
+        const tracks = resArr.reduce((allTracks, page) => {
+          return allTracks.concat(page.items);
+        }, []);
         resolve(tracks);
-      } else reject('response received on getting tracks, but it was bad');
-    })
-    .catch(err => {
-      console.log(err.config);
-      reject('error response received on getting tracks: ' + err)
+      });
     });
   });
 }
@@ -195,7 +246,7 @@ function addTracksToBarn(userId, accessToken, barn, tracks) {
       else reject('response received but it wasn\'t good');
     })
     .catch(err => {
-      console.log(err);
+      console.log(err.response.data.error);
       reject('error during request');
     });
   });
@@ -228,6 +279,43 @@ function addAllTracksToBarn(userId, accessToken, barn, tracks) {
   console.log('adding all tracks, promises: ', promises);
 
   return Promise.all(promises);
+}
+
+function pagePromises(axiosConfig) {
+  // thanks to github.com/JMPerez for this function
+
+  const promiseThrottle = new PromiseThrottle({
+    requestsPerSecond: 10,
+    promiseImplementation: Promise,
+  });
+
+  return new Promise((resolve, reject) => {
+    axios.request(Object.assign({}, axiosConfig, {params: {limit: 1}}))
+    .then(response => {
+      const promises = [];
+      let offset = 0;
+      while (response.data.total > offset) {
+        const newParams = Object.assign({}, axiosConfig.params, {offset});
+        const subsetConfig = Object.assign({}, axiosConfig, {params: newParams});
+        promises.push(promiseThrottle.add(getItems.bind(this, subsetConfig)));
+        offset += axiosConfig.params.limit;
+      }
+      resolve(promises);
+    })
+    .catch(err => {
+      reject(err);
+    });
+  });
+}
+
+function getItems(axiosConfig) {
+  return new Promise((resolve, reject) => {
+    axios.request(axiosConfig)
+    .then(response => {
+      resolve(response.data);
+    })
+    .catch(err => reject(err));
+  });
 }
 
 module.exports = router;
