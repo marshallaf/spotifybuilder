@@ -10,6 +10,7 @@ class PlaylistCtr extends React.Component {
   }
 
   handleBarn() {
+    if (!this.props.owned) return;
     let newRole = '';
     if (this.props.barn) newRole = 'none';
     else newRole = 'barn';
@@ -30,6 +31,7 @@ class PlaylistCtr extends React.Component {
         handleSheep={this.handleSheep}
         name={this.props.name}
         role={this.props.role}
+        owned={this.props.owned}
       />
     );
   }

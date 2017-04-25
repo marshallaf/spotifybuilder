@@ -79,8 +79,10 @@ class DashboardPage extends React.Component {
           <div className='playlists-container'>
             {this.state.playlists.map((playlist, index) => (
               <PlaylistCtr
+                key={index}
                 name={playlist.name}
                 role={playlist.role}
+                owned={playlist.owned}
                 pos={index}
                 barn={index == this.state.barnIndex}
                 changeRole={this.changePlaylistRole} 
