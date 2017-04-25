@@ -101,6 +101,7 @@ body {
     &.inactive {
       color: lighten($add-color, 80%);
       border: 1px solid lighten($add-color, 80%);
+      cursor: default;
       &:hover {
         background-color: white;
         color: lighten($add-color, 80%);
