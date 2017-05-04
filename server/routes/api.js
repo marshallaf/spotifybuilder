@@ -84,9 +84,12 @@ router.post('/aggregate', (req, res) => {
   .then(resArr => {
     // returned is an array of arrays of tracks
     // this puts them into one large array of all the tracks
-    const tracks = resArr[1].reduce((allTracks, trackList) => {
+    // the filter step at the end also makes sure there are no nulls (which happens for some reason?)
+    const tracks = resArr[1]
+    .reduce((allTracks, trackList) => {
       return allTracks.concat(trackList.map(track => track.track));
-    }, []);
+    }, [])
+    .filter(track => track);
 
     // sorting by explicit will make the de-dupe step to prefer the explicit version, if there are both
     tracks.sort((a, b) => {
