@@ -2,12 +2,10 @@
   "name": "spotify-builder",
   "version": "1.0.0",
   "description": "App to automatically aggregate a set of playlists.",
-  "main": "./server/index.js",
+  "private": true,
   "scripts": {
     "start": "node ./server/index.js",
-    "start-dev": "env DEV_MODE=1 nodemon --use_strict ./server/index.js",
-    "build": "webpack",
-    "heroku-postbuild": "webpack -p --config ./webpack.config.prod.js --progress"
+    "build": "webpack"
   },
   "author": "Andrew Marshall",
   "license": "ISC",
@@ -29,14 +27,15 @@
     "react-router-dom": "^4.3.1"
   },
   "devDependencies": {
-    "babel-core": "^6.26.3",
+    "@babel/core": "^7.0.0",
     "babel-loader": "^8.0.2",
-    "babel-preset-env": "^1.7.0",
-    "babel-preset-react": "^6.24.1",
+    "@babel/preset-env": "^7.0.0",
+    "@babel/preset-react": "^7.0.0",
     "css-loader": "^1.0.0",
     "dotenv": "^4.0.0",
     "sass-loader": "^7.1.0",
     "style-loader": "^0.23.0",
-    "webpack": "^4.17.1"
+    "webpack": "^4.17.1",
+    "webpack-cli": "^3.1.0"
   }
 }
