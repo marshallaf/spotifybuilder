@@ -12,6 +12,7 @@ if (process.env.DEV_MODE == 1) {
 
 // connect to database
 mongoose.connect(process.env.MONGO_URI);
+mongoose.Promise = global.Promise;
 
 // initialize express
 const app = express();
