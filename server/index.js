@@ -11,8 +11,10 @@ if (process.env.DEV_MODE == 1) {
 }
 
 // connect to database
-mongoose.connect(process.env.MONGO_URI);
 mongoose.Promise = global.Promise;
+mongoose.set('useFindAndModify', false);
+mongoose.set('useNewUrlParser', true);
+mongoose.connect(process.env.MONGO_URI);
 
 // initialize express
 const app = express();
