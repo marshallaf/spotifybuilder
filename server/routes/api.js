@@ -14,8 +14,7 @@ router.use(bodyParser.json());
 // GET /api/user, gets user from header and returns to requester
 router.get('/user', (req, res) => {
   if (!req.user) {
-    console.log('there is no user');
-    return res.status(401).end();
+    return res.status(401).json({ error: 'User not found.' });
   }
 
   return res.status(200).json(req.user);
@@ -23,23 +22,28 @@ router.get('/user', (req, res) => {
 
 // GET /api/playlists, gets list of user's playlists
 router.get('/playlists', (req, res) => {
-  if (!req.user) return res.status(401).end();
+  if (!req.user) {
+    res.status(401).json({ error: 'Session no longer valid.' });
+    return;
+  }
 
-  return getSpotifyPlaylists(req.user.spotifyId, req.user.accessToken)
+  const { user } = req;
+
+  getSpotifyPlaylists(user.spotifyId, user.accessToken)
     .then(playlists => {
       const playlistsFromApi = playlists.map(playlist => ({
         name: playlist.name,
         id: playlist.id,
         href: playlist.href,
-        owned: playlist.owner.id === req.user.spotify.id,
+        owned: playlist.owner.id === user.spotifyId,
         role: 'none'
       }));
 
-      return User.findById(req.user.spotifyId, 'playlists')
-        .then(user => {
+      User.findOne({ spotifyId: user.spotifyId }, 'playlists')
+        .then(dbUser => {
           // determine playlist roles
           const updatedPlaylists = [];
-          user.playlists.forEach(userPlaylist => {
+          dbUser.playlists.forEach(userPlaylist => {
             const matchingApiPlaylist = playlistsFromApi.find(item => item.id === userPlaylist.id);
             if (!matchingApiPlaylist) return;
 
@@ -48,14 +52,14 @@ router.get('/playlists', (req, res) => {
           });
 
           // store new set of playlists
-          user.set({ playlists: updatedPlaylists });
-          return user.save()
-            .then(res.status(200).json(playlistsFromApi))
-            .catch(res.status(500).json({ error: 'Error saving user\'s new playlists.' }));
+          dbUser.set({ playlists: updatedPlaylists });
+          dbUser.save()
+            .then(() => res.status(200).json(playlistsFromApi))
+            .catch(() => res.status(500).json({ error: 'Error saving user\'s new playlists.' }));
         })
-        .catch(res.status(500).json({ error: 'User not found.' }));
+        .catch(() => res.status(500).json({ error: 'User not found.' }));
     })
-    .catch(res.status(404).json({ error: 'Error getting user\'s playlists.' }));
+    .catch(() => res.status(404).json({ error: 'Error getting user\'s playlists.' }));
 });
 
 router.post('/playlists', (req, res) => {
