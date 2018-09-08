@@ -14,7 +14,7 @@ router.use(bodyParser.json());
 // GET /api/user, gets user from header and returns to requester
 router.get('/user', (req, res) => {
   if (!req.user) {
-    return res.status(401).json({ error: 'User not found.' });
+    return res.status(401).json({ error: 'Session no longer valid.' });
   }
 
   return res.status(200).json(req.user);
@@ -63,11 +63,12 @@ router.get('/playlists', (req, res) => {
 });
 
 router.post('/playlists', (req, res) => {
-  if (!req.user) return res.status(401).end();
-  if (!req.body.data.playlists) return res.status(400).end();
+  if (!req.user) res.status(401).json({ error: 'Session no longer valid.' });
+  if (!req.body.data.playlists) res.status(400).json({ error: 'POST to /api/playlists must contain a playlists object.' });
 
   saveUserPlaylists(req.user, req.body.data.playlists)
-  .then(() => res.status(200).end());
+    .then(() => res.status(200).end())
+    .catch(() => res.status(500).json({ error: 'Error saving user\'s playlists.' }));
 });
 
 router.post('/aggregate', (req, res) => {
@@ -159,18 +160,10 @@ router.post('/aggregate', (req, res) => {
 });
 
 function saveUserPlaylists(user, playlists) {
-  return new Promise((resolve, reject) => {
-    User.findById(user._id, 'playlists', (err, foundUser) => {
-      if (err) reject('error finding user: ' + err);
-
-      // store playlists
-      foundUser.playlists = playlists;
-      foundUser.save(err => {
-        if (err) reject('error saving user: ' + err);
-        resolve();
-      });
-    });
-  });
+  return User.findOneAndUpdate(
+    { spotifyId: user.spotifyId },
+    { playlists }
+  );
 }
 
 function getSpotifyPlaylists(userId, accessToken) {
@@ -224,7 +217,7 @@ function getPlaylistTracks(userId, accessToken, playlist) {
   const reqConfig = {
     method: 'get',
     url: `${playlist.href}/tracks`,
-    headers: {'Authorization': `Bearer ${accessToken}`},
+    headers: { Authorization: `Bearer ${accessToken}` },
     params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100},
   };
 
