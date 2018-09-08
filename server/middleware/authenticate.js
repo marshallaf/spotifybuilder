@@ -7,23 +7,20 @@ const User = require('../models/users');
 module.exports = (req, res, next) => {
   if (!req.cookies || !req.cookies.token) {
     // there was no cookie
-    console.log('there was no cookie');
-    return res.status(401).end();
+    return res.status(401).json({ error: 'Session creation failed.' });
   }
 
   return jwt.verify(req.cookies.token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) {
-      console.log('error during verification');
-      return res.status(401).end();
+      return res.status(401).json({ error: 'Error verifying user\'s session token.' });
     }
 
     const userId = decoded.sub;
 
     // check that the user exists
-    return User.findById(userId, '_id spotify', (findErr, user) => {
+    return User.findOne({ spotifyId: userId }, (findErr, user) => {
       if (findErr || !user) {
-        console.log('error locating user');
-        return res.status(401).end();
+        return res.status(401).json({ error: 'User not found in database.' });
       }
 
       req.user = user;

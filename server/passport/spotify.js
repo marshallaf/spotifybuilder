@@ -1,58 +1,47 @@
 const SpotifyStrategy = require('passport-spotify').Strategy;
-const User = require('../models/users');
 const jwt = require('jsonwebtoken');
+const User = require('../models/users');
 
 module.exports = new SpotifyStrategy(
   {
     clientID: process.env.SPOTIFY_KEY,
     clientSecret: process.env.SPOTIFY_SECRET,
-    callbackURL: process.env.APP_URL + '/auth/spotify/callback',
+    callbackURL: `${process.env.APP_URL}/auth/spotify/callback`,
     session: false,
   },
-  (accessToken, refreshToken, profile, done) => {
+  (accessToken, refreshToken, response, done) => {
     // makes it async
     process.nextTick(() => {
-      User.findOne({ 'spotify.id': profile.id }, '_id spotify', (err, user) => {
-        if (err) return done(err);
-        if (user) {
-          // user was found, update their tokens
-          user.spotify.accessToken = accessToken;
-          user.spotify.refreshToken = refreshToken;
-          // save updated user
-          user.save(err => {
-            if (err) throw err;
-
-            const token = createJWT(user);
-
-            // return to routing (/auth/login)
-            done(null, token, user);
-          });
-        } else {
-          // user is new, add to database
-          const newUser = new User();
-          console.log(profile._json);
-          newUser.spotify.id = profile._json.id;
-          newUser.spotify.displayName = profile._json.display_name;
-          newUser.spotify.href = profile._json.href;
-          newUser.spotify.image = profile._json.images[0].url;
-          newUser.spotify.accessToken = accessToken;
-          newUser.spotify.refreshToken = refreshToken;
-
-          newUser.save(err => {
-            if (err) throw err;
-
-            const token = createJWT(newUser);
-
-            return done(null, token, newUser);
-          });
+      const profile = response._json;
+      User.findOneAndUpdate(
+        { spotifyId: profile.id },
+        {
+          $setOnInsert: { spotifyId: profile.id },
+          displayName: profile.display_name,
+          href: profile.href,
+          image: profile.images[0].url,
+          accessToken,
+          refreshToken
+        },
+        {
+          new: true,
+          upsert: true
         }
-      });
+      )
+        .then(user => {
+          console.log('User found or created, creating session.');
+          const token = createJWT(user);
+
+          // return to routing (/auth/login)
+          done(null, token, user);
+        })
+        .catch(findErr => done(findErr));
     });
   }
 );
 
 function createJWT(user) {
   // create a jwToken for this user
-  const payload = { sub: user._id };
+  const payload = { sub: user.spotifyId };
   return jwt.sign(payload, process.env.JWT_SECRET);
 }
