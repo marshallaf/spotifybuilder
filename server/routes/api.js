@@ -72,54 +72,39 @@ router.post('/playlists', (req, res) => {
 });
 
 router.post('/aggregate', (req, res) => {
-  if (!req.user) return res.status(401).end();
-  if (!req.body.data.playlists) return res.status(400).end();
+  if (!req.user) res.status(401).json({ error: 'Session no longer valid.' });
+  if (!req.body.data.playlists) res.status(400).json({ error: 'POST to /api/aggregate must contain a playlists object.' });
 
-  // this is redundant, so take it out of here, or from saveUserPlaylists
-  const newPlaylists = req.body.data.playlists.filter(playlist => playlist.role !== 'none');
+  const roledPlaylists = req.body.data.playlists.filter(playlist => playlist.role !== 'none');
 
-  const barnIndex = newPlaylists.findIndex(playlist => playlist.role === 'barn');
-  const barn = newPlaylists[barnIndex];
-  newPlaylists.splice(barnIndex, 1);
+  const barnIndex = roledPlaylists.findIndex(playlist => playlist.role === 'barn');
+  const sheepPlaylists = [...roledPlaylists];
+  const [barn] = sheepPlaylists.splice(barnIndex, 1);
 
-  const promises = new Array(saveUserPlaylists(req.user, [...newPlaylists, barn]), 
-                             getAllPlaylistTracks(req.user.spotify.id, req.user.spotify.accessToken, newPlaylists));
-
+  const promises = [
+    saveUserPlaylists(req.user, roledPlaylists),
+    getAllPlaylistTracks(req.user.spotifyId, req.user.accessToken, sheepPlaylists)
+  ];
+  
   // we have all the tracks from the playlists, and we've saved the playlists to the db
   // now we hit the Spotify API to add them to the barn playlist
   Promise.all(promises)
+    .then(resolvedPromises => {
+      // console.log(resolvedPromises);
+
+      const tracks = resolvedPromises[1];
+      const artists = deduplicateAndFormat(tracks);
+
+      
+
+      console.log(JSON.stringify(artists));
+    })
+    .catch(() => res.status(500).json({ error: 'Error bundling playlists.' }));
+
+  return;
+
+  Promise.all(promises)
   .then(resArr => {
-    // returned is an array of arrays of tracks
-    // this puts them into one large array of all the tracks
-    // the filter step at the end also makes sure there are no nulls (which happens for some reason?)
-    const tracks = resArr[1]
-    .reduce((allTracks, trackList) => {
-      return allTracks.concat(trackList.map(track => track.track));
-    }, [])
-    .filter(track => track);
-
-    // sorting by explicit will make the de-dupe step to prefer the explicit version, if there are both
-    tracks.sort((a, b) => {
-      if (a.explicit && b.explicit) return 0;
-      else if (!a.explicit) return 1;
-      else return -1;
-    });
-
-    // remove duplicates from the full list of tracks
-    const seenMD5s = {};
-    const uniqueTracks = [];
-    tracks.forEach(track => {
-      track.md5 = md5(`${track.name}:${track.artists[0].name}`);
-      if (!(track.md5 in seenMD5s)) {
-        seenMD5s[track.md5] = true;
-        uniqueTracks.push({
-          name: track.name,
-          artist: track.artists[0].name,
-          spotifyId: track.id,
-          _id: track.md5,
-        });
-      }
-    });
 
     User.findById(req.user._id, 'seenTracks', (err, user) => {
       if (err) {
@@ -158,6 +143,49 @@ router.post('/aggregate', (req, res) => {
     res.status(500).end();
   });
 });
+
+function normalize(original) {
+  const normalized = original.toLowerCase();
+  const symbols = new RegExp('[`~!@#$%^&*()\\s\\.,+=\\-\'\\[\\]\\{}|\\<\\>?]', 'g');
+  return normalized.replace(symbols, '');
+}
+
+function deduplicateAndFormat(tracks) {
+  // sorting by explicit will make the de-dupe step to prefer the
+  // explicit version, if there are both
+  tracks.sort((track1, track2) => {
+    if (track1.explicit && track2.explicit) return 0;
+    if (!track1.explicit) return 1;
+    return -1;
+  });
+
+  // remove duplicates from the full list of tracks
+  // and restructure into db format
+  const artists = {};
+  tracks.forEach(track => {
+    const artistName = track.artists[0].name;
+    if (!Object.prototype.hasOwnProperty.call(artists, artistName)) {
+      artists[artistName] = {
+        name: artistName,
+        spotifyId: track.artists[0].id,
+        tracks: {}
+      };
+    }
+
+    const normalizedTrackName = normalize(track.name);
+    if (!Object.prototype.hasOwnProperty.call(
+      artists[artistName].tracks,
+      normalizedTrackName
+    )) {
+      artists[artistName].tracks[normalizedTrackName] = {
+        name: track.name,
+        spotifyId: track.id
+      };
+    }
+  });
+
+  return artists;
+}
 
 function saveUserPlaylists(user, playlists) {
   return User.findOneAndUpdate(
@@ -201,7 +229,7 @@ function getAllPlaylistTracks(userId, accessToken, playlists) {
 
   const promises = playlists.map(playlist => promiseThrottle.add(
     // you can either do it like this:
-    getPlaylistTracks.bind(this, userId, accessToken, playlist))
+    getPlaylistTracks.bind(this, accessToken, playlist))
     // or in an anon no-arg function def:
     // function() {
     //    return getPlaylistTracks(userId, accessToken, playlist);
@@ -209,29 +237,37 @@ function getAllPlaylistTracks(userId, accessToken, playlists) {
     // I'm not sure of the pros/cons of each, if any.
   );
 
-  return Promise.all(promises);
+  return new Promise((resolve, reject) => {
+    Promise.all(promises)
+      .then(arraysOfPlaylistTracks => {
+        const tracks = arraysOfPlaylistTracks.reduce((allTracks, trackList) => (
+          allTracks.concat(trackList.map(track => track.track))
+        ), [])
+          .filter(track => track);
+        resolve(tracks);
+      })
+      .catch(() => reject());
+  });
 }
 
-function getPlaylistTracks(userId, accessToken, playlist) {
-  
-  const reqConfig = {
+function getPlaylistTracks(accessToken, playlist) {
+  const requestConfig = {
     method: 'get',
     url: `${playlist.href}/tracks`,
     headers: { Authorization: `Bearer ${accessToken}` },
-    params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100},
+    params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100 },
   };
 
   return new Promise((resolve, reject) => {
-    pagePromises(reqConfig)
-    .then(promises => {
-      Promise.all(promises)
-      .then(resArr => {
-        const tracks = resArr.reduce((allTracks, page) => {
-          return allTracks.concat(page.items);
-        }, []);
-        resolve(tracks);
-      });
-    });
+    pagePromises(requestConfig)
+      .then(promises => {
+        Promise.all(promises)
+          .then(trackPages => {
+            const tracks = trackPages.reduce((allTracks, page) => allTracks.concat(page.items), []);
+            resolve(tracks);
+          });
+      })
+      .catch(() => reject());
   });
 }
 

@@ -2,8 +2,9 @@ const mongoose = require('mongoose');
 
 const Track = new mongoose.Schema({
   name: String,
+  normalizedName: String,
   spotifyId: String,
-  userIds: [String]
+  playlistIds: [String]
 });
 
 const Artist = new mongoose.Schema({
