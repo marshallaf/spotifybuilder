@@ -1,11 +1,10 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
-const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const PromiseThrottle = require('promise-throttle');
-const md5 = require('md5');
 const User = require('../models/users');
+const Artist = require('../models/artists');
 
 const router = express.Router();
 router.use(cookieParser());
@@ -14,8 +13,7 @@ router.use(bodyParser.json());
 // GET /api/user, gets user from header and returns to requester
 router.get('/user', (req, res) => {
   if (!req.user) {
-    console.log('there is no user');
-    return res.status(401).end();
+    return res.status(401).json({ error: 'Session no longer valid.' });
   }
 
   return res.status(200).json(req.user);
@@ -23,172 +21,236 @@ router.get('/user', (req, res) => {
 
 // GET /api/playlists, gets list of user's playlists
 router.get('/playlists', (req, res) => {
-  if (!req.user) return res.status(401).end();
+  if (!req.user) {
+    res.status(401).json({ error: 'Session no longer valid.' });
+    return;
+  }
 
-  getSpotifyPlaylists(req.user.spotify.id, req.user.spotify.accessToken, playlists => {
-    if (!playlists) return res.status(404).end();
-    const spotifyPlaylists = playlists.map(playlist => {
-      return {
+  const { user } = req;
+
+  getSpotifyPlaylists(user.spotifyId, user.accessToken)
+    .then(playlists => (
+      playlists.map(playlist => ({
         name: playlist.name,
-        id: playlist.id, 
-        href: playlist.href, 
-        owned: playlist.owner.id == req.user.spotify.id,
+        spotifyId: playlist.id,
+        href: playlist.href,
+        owned: playlist.owner.id === user.spotifyId,
         role: 'none'
-      };
-    });
-    User.findById(req.user._id, 'playlists', (err, user) => {
-      if (err) throw err;
-      // determine playlist roles
-      const newPlaylists = [];
-      user.playlists.forEach(playlist => {
-        const sPlaylist = spotifyPlaylists.find(spl => spl.id === playlist.id);
-        if (!sPlaylist) return;
-        sPlaylist.role = playlist.role;
-        newPlaylists.push(sPlaylist);
-      });
-      // store new set of playlists
-      user.playlists = newPlaylists;
-      user.save(err => {
-        if (err) throw err;
-        return res.status(200).json(spotifyPlaylists);
-      });
-    });
-  });
+      }))
+    ))
+    .then(playlistsFromApi => (
+      User.findOne({ spotifyId: user.spotifyId }, 'playlists')
+        .then(dbUser => {
+          // determine playlist roles
+          dbUser.playlists.forEach(userPlaylist => {
+            const matchingApiPlaylist = playlistsFromApi.find(item => (
+              item.spotifyId === userPlaylist.spotifyId
+            ));
+            if (!matchingApiPlaylist) return;
+
+            matchingApiPlaylist.role = userPlaylist.role;
+          });
+          // console.log(dbUser.playlists);
+
+          // store new set of playlists
+          dbUser.set({ playlists: playlistsFromApi });
+          return new Promise((resolve, reject) => {
+            dbUser.save()
+              .then(() => resolve(playlistsFromApi))
+              .catch(err => reject(err));
+          });
+        })
+    ))
+    .then(playlists => res.status(200).json(playlists))
+    .catch(() => res.status(500).json({ error: 'Error getting user\'s playlists.' }));
 });
 
 router.post('/playlists', (req, res) => {
-  if (!req.user) return res.status(401).end();
-  if (!req.body.data.playlists) return res.status(400).end();
+  if (!req.user) res.status(401).json({ error: 'Session no longer valid.' });
+  if (!req.body.data.playlists) res.status(400).json({ error: 'POST to /api/playlists must contain a playlists object.' });
 
   saveUserPlaylists(req.user, req.body.data.playlists)
-  .then(() => res.status(200).end());
+    .then(() => res.status(200).end())
+    .catch(() => res.status(500).json({ error: 'Error saving user\'s playlists.' }));
 });
 
 router.post('/aggregate', (req, res) => {
-  if (!req.user) return res.status(401).end();
-  if (!req.body.data.playlists) return res.status(400).end();
+  if (!req.user) res.status(401).json({ error: 'Session no longer valid.' });
+  if (!req.body.data.playlists) res.status(400).json({ error: 'POST to /api/aggregate must contain a playlists object.' });
 
-  // this is redundant, so take it out of here, or from saveUserPlaylists
-  const newPlaylists = req.body.data.playlists.filter(playlist => playlist.role !== 'none');
+  const roledPlaylists = req.body.data.playlists.filter(playlist => playlist.role !== 'none');
 
-  const barnIndex = newPlaylists.findIndex(playlist => playlist.role === 'barn');
-  const barn = newPlaylists[barnIndex];
-  newPlaylists.splice(barnIndex, 1);
+  const barnIndex = roledPlaylists.findIndex(playlist => playlist.role === 'barn');
+  const sheepPlaylists = [...roledPlaylists];
+  const [barn] = sheepPlaylists.splice(barnIndex, 1);
 
-  const promises = new Array(saveUserPlaylists(req.user, [...newPlaylists, barn]), 
-                             getAllPlaylistTracks(req.user.spotify.id, req.user.spotify.accessToken, newPlaylists));
-
+  const promises = [
+    saveUserPlaylists(req.user, roledPlaylists),
+    getAllPlaylistTracks(req.user.spotifyId, req.user.accessToken, sheepPlaylists)
+  ];
+  
   // we have all the tracks from the playlists, and we've saved the playlists to the db
   // now we hit the Spotify API to add them to the barn playlist
   Promise.all(promises)
-  .then(resArr => {
-    // returned is an array of arrays of tracks
-    // this puts them into one large array of all the tracks
-    // the filter step at the end also makes sure there are no nulls (which happens for some reason?)
-    const tracks = resArr[1]
-    .reduce((allTracks, trackList) => {
-      return allTracks.concat(trackList.map(track => track.track));
-    }, [])
-    .filter(track => track);
+    .then(resolvedPromises => resolvedPromises[1])
+    .then(tracks => deduplicateAndFormat(tracks))
+    .then(artists => {
+      const artistSavePromises = [];
 
-    // sorting by explicit will make the de-dupe step to prefer the explicit version, if there are both
-    tracks.sort((a, b) => {
-      if (a.explicit && b.explicit) return 0;
-      else if (!a.explicit) return 1;
-      else return -1;
-    });
-
-    // remove duplicates from the full list of tracks
-    const seenMD5s = {};
-    const uniqueTracks = [];
-    tracks.forEach(track => {
-      track.md5 = md5(`${track.name}:${track.artists[0].name}`);
-      if (!(track.md5 in seenMD5s)) {
-        seenMD5s[track.md5] = true;
-        uniqueTracks.push({
-          name: track.name,
-          artist: track.artists[0].name,
-          spotifyId: track.id,
-          _id: track.md5,
-        });
-      }
-    });
-
-    User.findById(req.user._id, 'seenTracks', (err, user) => {
-      if (err) {
-        console.log('error reading database', err);
-        res.status(500).end();
-      }
-
-      // removes tracks the user has bundled in the past
-      const doubleUniqueTracks = uniqueTracks.filter(track => {
-        return !(user.seenTracks.id(track._id));
-      });
-
-      // create an array of the song URIs that the Spotify API expects
-      const idsToAdd = doubleUniqueTracks.map(track => `spotify:track:${track.spotifyId}`);
-
-      addAllTracksToBarn(req.user.spotify.id, req.user.spotify.accessToken, barn, idsToAdd)
-      .then(() => {
-        console.log('saving tracks');
-        user.seenTracks.push(...doubleUniqueTracks);
-        user.save(err => {
-          if (err) {
-            console.log('/api/aggregate::', err, '::');
-            return res.status(500).end();
+      Object.values(artists).forEach(artist => {
+        const artistPromise = Artist.findOneAndUpdate(
+          { $or: [{ name: artist.name }, { spotifyId: artist.spotifyId }] },
+          {
+            $setOnInsert: {
+              name: artist.name,
+              spotifyId: artist.spotifyId
+            }
+          },
+          {
+            upsert: true,
+            new: true
           }
-          return res.status(200).end();
-        });
-      })
-      .catch(err => {
-        console.log('/api/aggregate::', err, '::');
-        return res.status(500).end();
+        )
+          .then(dbArtist => filterTracksForArtist(dbArtist, artist, barn.id));
+        artistSavePromises.push(artistPromise);
       });
+      return Promise.all(artistSavePromises);
+    })
+    .then(nestedArrOfTracks => nestedArrOfTracks.reduce((allTracks, trackList) => (
+      allTracks.concat(...trackList)
+    ), []))
+    .then(newTrackIds => {
+      console.log(newTrackIds);
+      return newTrackIds.map(trackId => buildSpotifyUri(trackId));
+    })
+    .then(newTrackUris => (
+      addAllTracksToBarn(req.user.spotifyId, req.user.accessToken, barn, newTrackUris))
+    )
+    .then(numberOfTracksAdded => {
+      console.log(`Added ${numberOfTracksAdded} tracks to ${barn.name}.`);
+      res.status(200).json({ success: `Added ${numberOfTracksAdded} tracks to ${barn.name}.` });
+    })
+    .catch(bundleErr => {
+      console.log(bundleErr);
+      res.status(500).json({ error: 'Error bundling playlists.' });
     });
-  })
-  .catch(err => {
-    console.log('/api/aggregate::', err, '::');
-    res.status(500).end();
-  });
 });
 
-function saveUserPlaylists(user, playlists) {
-
-  return new Promise((resolve, reject) => {
-    User.findById(user._id, 'playlists', (err, foundUser) => {
-      if (err) reject('error finding user: ' + err);
-
-      // store playlists
-      foundUser.playlists = playlists;
-      foundUser.save(err => {
-        if (err) reject('error saving user: ' + err);
-        resolve();
+function filterTracksForArtist(dbArtist, newArtist, barnId) {
+  const artistSongIdsToAdd = [];
+  const newTracks = newArtist.tracks;
+  const dbArtistTracks = dbArtist.tracks;
+  Object.values(newTracks).forEach(newTrack => {
+    // check each new track against the db
+    const dbTrack = dbArtistTracks.find(item => (
+      item.spotifyId === newTrack.spotifyId
+      || item.normalizedName === newTrack.normalizedName
+    ));
+    if (dbTrack) {
+      // this track has already been stored to the db - check if it's been stored to this barn
+      if (!dbTrack.playlistIds.includes(barnId)) {
+        // this track hasn't been stored to this barn yet, add it
+        dbTrack.playlistIds.push(barnId);
+        artistSongIdsToAdd.push(newTrack.spotifyId);
+      }
+    } else {
+      // this track has not been stored to this artist yet, add it
+      dbArtist.tracks.push({
+        name: newTrack.name,
+        spotifyId: newTrack.spotifyId,
+        normalizedName: newTrack.normalizedName,
+        playlistIds: [barnId]
       });
-    });
+      artistSongIdsToAdd.push(newTrack.spotifyId);
+    }
+  });
+  return new Promise((resolve, reject) => {
+    dbArtist.save()
+      .then(() => resolve(artistSongIdsToAdd))
+      .catch(saveErr => reject(saveErr));
   });
 }
 
-function getSpotifyPlaylists(userId, accessToken, cb) {
+function buildSpotifyUri(trackId) {
+  return `spotify:track:${trackId}`;
+}
+
+function normalize(original) {
+  const normalized = original.toLowerCase();
+  const symbols = new RegExp('[`~!@#$%^&*()\\s\\.,+=\\-\'\\[\\]\\{}|\\<\\>?]', 'g');
+  return normalized.replace(symbols, '');
+}
+
+function deduplicateAndFormat(tracks) {
+  // sorting by explicit will make the de-dupe step to prefer the
+  // explicit version, if there are both
+  tracks.sort((track1, track2) => {
+    if (track1.explicit && track2.explicit) return 0;
+    if (!track1.explicit) return 1;
+    return -1;
+  });
+
+  // remove duplicates from the full list of tracks
+  // and restructure into db format
+  const artists = {};
+  tracks.forEach(track => {
+    const artistName = track.artists[0].name;
+    if (!Object.prototype.hasOwnProperty.call(artists, artistName)) {
+      artists[artistName] = {
+        name: artistName,
+        spotifyId: track.artists[0].id,
+        tracks: {}
+      };
+    }
+
+    const normalizedTrackName = normalize(track.name);
+    if (!Object.prototype.hasOwnProperty.call(
+      artists[artistName].tracks,
+      normalizedTrackName
+    )) {
+      artists[artistName].tracks[normalizedTrackName] = {
+        name: track.name,
+        spotifyId: track.id,
+        normalizedName: normalizedTrackName
+      };
+    }
+  });
+
+  return artists;
+}
+
+function saveUserPlaylists(user, playlists) {
+  return User.findOneAndUpdate(
+    { spotifyId: user.spotifyId },
+    { playlists },
+    { new: true }
+  );
+}
+
+function getSpotifyPlaylists(userId, accessToken) {
   // create a base axios config
   const spotifyReq = axios.create({
     method: 'get',
     url: `https://api.spotify.com/v1/users/${userId}/playlists?limit=50`,
-    headers: {'Authorization': `Bearer ${accessToken}`},
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   // TODO: refactor to use paging and promise-throttle
 
   // actually make the request
-  spotifyReq()
-  .then(response => {
-    if (response.status === 200) {
-      const playlists = response.data.items;
-      return cb(playlists);
-    }
-  })
-  .catch(err => {
-    console.log(err.response.data.error);
-    return cb(null);
+  return new Promise((resolve, reject) => {
+    spotifyReq()
+      .then(response => {
+        if (response.status === 200) {
+          resolve(response.data.items);
+        } else {
+          reject();
+        }
+      })
+      .catch(err => {
+        console.log(err.response.data.error);
+        reject();
+      });
   });
 }
 
@@ -200,7 +262,7 @@ function getAllPlaylistTracks(userId, accessToken, playlists) {
 
   const promises = playlists.map(playlist => promiseThrottle.add(
     // you can either do it like this:
-    getPlaylistTracks.bind(this, userId, accessToken, playlist))
+    getPlaylistTracks.bind(this, accessToken, playlist))
     // or in an anon no-arg function def:
     // function() {
     //    return getPlaylistTracks(userId, accessToken, playlist);
@@ -208,45 +270,54 @@ function getAllPlaylistTracks(userId, accessToken, playlists) {
     // I'm not sure of the pros/cons of each, if any.
   );
 
-  return Promise.all(promises);
+  return new Promise((resolve, reject) => {
+    Promise.all(promises)
+      .then(arraysOfPlaylistTracks => {
+        const tracks = arraysOfPlaylistTracks.reduce((allTracks, trackList) => (
+          allTracks.concat(trackList.map(track => track.track))
+        ), [])
+          .filter(track => track);
+        resolve(tracks);
+      })
+      .catch(err => reject(err));
+  });
 }
 
-function getPlaylistTracks(userId, accessToken, playlist) {
-  
-  const reqConfig = {
+function getPlaylistTracks(accessToken, playlist) {
+  const requestConfig = {
     method: 'get',
     url: `${playlist.href}/tracks`,
-    headers: {'Authorization': `Bearer ${accessToken}`},
-    params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100},
+    headers: { Authorization: `Bearer ${accessToken}` },
+    params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100 },
   };
 
   return new Promise((resolve, reject) => {
-    pagePromises(reqConfig)
-    .then(promises => {
-      Promise.all(promises)
-      .then(resArr => {
-        const tracks = resArr.reduce((allTracks, page) => {
-          return allTracks.concat(page.items);
-        }, []);
-        resolve(tracks);
-      });
-    });
+    pagePromises(requestConfig)
+      .then(promises => {
+        Promise.all(promises)
+          .then(trackPages => {
+            const tracks = trackPages.reduce((allTracks, page) => allTracks.concat(page.items), []);
+            resolve(tracks);
+          });
+      })
+      .catch(err => reject(err));
   });
 }
 
 function addTracksToBarn(userId, accessToken, barn, tracks) {
   return new Promise((resolve, reject) => {
     axios.post(`https://api.spotify.com/v1/users/${userId}/playlists/${barn.id}/tracks`,
-                     {uris: tracks},
-                     {headers: {'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json'}})
-    .then(response => {
-      if (response.status === 201) resolve();
-      else reject('response received but it wasn\'t good');
-    })
-    .catch(err => {
-      console.log(err.response.data.error);
-      reject('error during request');
-    });
+      { uris: tracks },
+      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+    )
+      .then(response => {
+        if (response.status === 201) resolve();
+        else reject(Error(`Error: Spotify API responded with unsuccessful status ${response.status}.`));
+      })
+      .catch(err => {
+        console.log(err.response.data.error);
+        reject(err);
+      });
   });
 }
 
@@ -257,12 +328,17 @@ function addAllTracksToBarn(userId, accessToken, barn, tracks) {
   });
 
   const numTracks = tracks.length;
+  if (tracks.length <= 0) {
+    return new Promise(resolve => resolve(0));
+  }
+
   const promises = [];
   for (let tracksAdded = 0; tracksAdded <= numTracks; tracksAdded += 100) {
     if (tracksAdded + 99 <= numTracks) {
       promises.push(
         promiseThrottle.add(
-          addTracksToBarn.bind(this, userId, accessToken, barn, tracks.slice(tracksAdded, tracksAdded + 100))
+          addTracksToBarn.bind(this, userId, accessToken, barn,
+            tracks.slice(tracksAdded, tracksAdded + 100))
         )
       );
     } else {
@@ -274,7 +350,11 @@ function addAllTracksToBarn(userId, accessToken, barn, tracks) {
     }
   }
 
-  return Promise.all(promises);
+  return new Promise((resolve, reject) => (
+    Promise.all(promises)
+      .then(() => resolve(numTracks))
+      .catch(err => reject(err))
+  ));
 }
 
 function pagePromises(axiosConfig) {
@@ -286,31 +366,31 @@ function pagePromises(axiosConfig) {
   });
 
   return new Promise((resolve, reject) => {
-    axios.request(Object.assign({}, axiosConfig, {params: {limit: 1}}))
-    .then(response => {
-      const promises = [];
-      let offset = 0;
-      while (response.data.total > offset) {
-        const newParams = Object.assign({}, axiosConfig.params, {offset});
-        const subsetConfig = Object.assign({}, axiosConfig, {params: newParams});
-        promises.push(promiseThrottle.add(getItems.bind(this, subsetConfig)));
-        offset += axiosConfig.params.limit;
-      }
-      resolve(promises);
-    })
-    .catch(err => {
-      reject(err);
-    });
+    axios.request(Object.assign({}, axiosConfig, { params: { limit: 1 } }))
+      .then(response => {
+        const promises = [];
+        let offset = 0;
+        while (response.data.total > offset) {
+          const newParams = Object.assign({}, axiosConfig.params, { offset });
+          const subsetConfig = Object.assign({}, axiosConfig, { params: newParams });
+          promises.push(promiseThrottle.add(getItems.bind(this, subsetConfig)));
+          offset += axiosConfig.params.limit;
+        }
+        resolve(promises);
+      })
+      .catch(err => {
+        reject(err);
+      });
   });
 }
 
 function getItems(axiosConfig) {
   return new Promise((resolve, reject) => {
     axios.request(axiosConfig)
-    .then(response => {
-      resolve(response.data);
-    })
-    .catch(err => reject(err));
+      .then(response => {
+        resolve(response.data);
+      })
+      .catch(err => reject(err));
   });
 }
 

@@ -1,9 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { BrowserRouter as Router, Route, Redirect } from 'react-router-dom';
-import HomePage from './containers/HomePage.js';
-import DashboardPage from './containers/DashboardPage.js';
-import LoginPage from './containers/LoginPage.js';
+import { BrowserRouter as Router, Route } from 'react-router-dom';
+import HomePage from './containers/HomePage';
+import DashboardPage from './containers/DashboardPage';
+import LoginPage from './containers/LoginPage';
 import './main.scss';
 
 // the root react-router that handles all client side (non-api/auth) routing

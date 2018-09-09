@@ -6,11 +6,14 @@ const passport = require('passport');
 const cookieParser = require('cookie-parser');
 
 // load environment variables if in dev
-if (process.env.DEV_MODE == 1) {
+if (process.env.NODE_ENV === 'development') {
   require('dotenv').load();
 }
 
 // connect to database
+mongoose.Promise = global.Promise;
+mongoose.set('useFindAndModify', false);
+mongoose.set('useNewUrlParser', true);
 mongoose.connect(process.env.MONGO_URI);
 
 // initialize express
@@ -18,7 +21,7 @@ const app = express();
 app.set('port', (process.env.PORT || 8080));
 
 // enable parsing of http body
-app.use(bodyParser.urlencoded({extended: false}));
+app.use(bodyParser.urlencoded({ extended: false }));
 // enable parsing of cookies
 app.use(cookieParser());
 
@@ -44,5 +47,5 @@ app.get('/*', (req, res) => {
 
 // start the server
 app.listen(app.get('port'), () => {
-  console.log('server listening on port ' + app.get('port'));
+  console.log(`server listening on port ${app.get('port')}`);
 });
