@@ -30,8 +30,8 @@ class DashboardPage extends React.Component {
         });
       })
       .catch(err => {
-        if (err.response.data.error) console.error(err.response.data.error);
-        else console.error('error fetching user data');
+        console.error('error fetching user data');
+        console.error(err);
       });
 
     // get playlists and current bundle roles
