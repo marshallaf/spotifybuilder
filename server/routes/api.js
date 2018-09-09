@@ -1,10 +1,8 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
-const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const PromiseThrottle = require('promise-throttle');
-const md5 = require('md5');
 const User = require('../models/users');
 const Artist = require('../models/artists');
 
@@ -133,20 +131,20 @@ function filterTracksForArtist(dbArtist, newArtist, barnId) {
   const newTracks = newArtist.tracks;
   const dbArtistTracks = dbArtist.tracks;
   Object.values(newTracks).forEach(newTrack => {
-    console.log(`Processing track '${newTrack.name}' for artist ${dbArtist.name}`);
+    // check each new track against the db
     const dbTrack = dbArtistTracks.find(item => (
       item.spotifyId === newTrack.spotifyId
       || item.normalizedName === newTrack.normalizedName
     ));
     if (dbTrack) {
-      console.log(`Track '${newTrack.name}' found in artist ${dbArtist.name}, checking playlists.`);
+      // this track has already been stored to the db - check if it's been stored to this barn
       if (!dbTrack.playlistIds.includes(barnId)) {
-        console.log(`Track '${newTrack.name}' not found in playlist ${barnId}, adding.`);
+        // this track hasn't been stored to this barn yet, add it
         dbTrack.playlistIds.push(barnId);
         artistSongIdsToAdd.push(newTrack.spotifyId);
       }
     } else {
-      console.log(`Track '${newTrack.name}' not found in artist ${dbArtist.name}, adding.`);
+      // this track has not been stored to this artist yet, add it
       dbArtist.tracks.push({
         name: newTrack.name,
         spotifyId: newTrack.spotifyId,
@@ -298,16 +296,17 @@ function getPlaylistTracks(accessToken, playlist) {
 function addTracksToBarn(userId, accessToken, barn, tracks) {
   return new Promise((resolve, reject) => {
     axios.post(`https://api.spotify.com/v1/users/${userId}/playlists/${barn.id}/tracks`,
-                     {uris: tracks},
-                     {headers: {'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json'}})
-    .then(response => {
-      if (response.status === 201) resolve();
-      else reject('response received but it wasn\'t good');
-    })
-    .catch(err => {
-      console.log(err.response.data.error);
-      reject('error during request');
-    });
+      { uris: tracks },
+      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+    )
+      .then(response => {
+        if (response.status === 201) resolve();
+        else reject(Error(`Error: Spotify API responded with unsuccessful status ${response.status}.`));
+      })
+      .catch(err => {
+        console.log(err.response.data.error);
+        reject(err);
+      });
   });
 }
 
@@ -323,7 +322,8 @@ function addAllTracksToBarn(userId, accessToken, barn, tracks) {
     if (tracksAdded + 99 <= numTracks) {
       promises.push(
         promiseThrottle.add(
-          addTracksToBarn.bind(this, userId, accessToken, barn, tracks.slice(tracksAdded, tracksAdded + 100))
+          addTracksToBarn.bind(this, userId, accessToken, barn,
+            tracks.slice(tracksAdded, tracksAdded + 100))
         )
       );
     } else {
@@ -347,31 +347,31 @@ function pagePromises(axiosConfig) {
   });
 
   return new Promise((resolve, reject) => {
-    axios.request(Object.assign({}, axiosConfig, {params: {limit: 1}}))
-    .then(response => {
-      const promises = [];
-      let offset = 0;
-      while (response.data.total > offset) {
-        const newParams = Object.assign({}, axiosConfig.params, {offset});
-        const subsetConfig = Object.assign({}, axiosConfig, {params: newParams});
-        promises.push(promiseThrottle.add(getItems.bind(this, subsetConfig)));
-        offset += axiosConfig.params.limit;
-      }
-      resolve(promises);
-    })
-    .catch(err => {
-      reject(err);
-    });
+    axios.request(Object.assign({}, axiosConfig, { params: { limit: 1 } }))
+      .then(response => {
+        const promises = [];
+        let offset = 0;
+        while (response.data.total > offset) {
+          const newParams = Object.assign({}, axiosConfig.params, { offset });
+          const subsetConfig = Object.assign({}, axiosConfig, { params: newParams });
+          promises.push(promiseThrottle.add(getItems.bind(this, subsetConfig)));
+          offset += axiosConfig.params.limit;
+        }
+        resolve(promises);
+      })
+      .catch(err => {
+        reject(err);
+      });
   });
 }
 
 function getItems(axiosConfig) {
   return new Promise((resolve, reject) => {
     axios.request(axiosConfig)
-    .then(response => {
-      resolve(response.data);
-    })
-    .catch(err => reject(err));
+      .then(response => {
+        resolve(response.data);
+      })
+      .catch(err => reject(err));
   });
 }
 
