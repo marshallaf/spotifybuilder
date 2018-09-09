@@ -29,7 +29,7 @@ router.get('/playlists', (req, res) => {
   const { user } = req;
 
   getSpotifyPlaylists(user.spotifyId, user.accessToken)
-    .then(playlists => (
+    .then(playlists =>
       playlists.map(playlist => ({
         name: playlist.name,
         spotifyId: playlist.id,
@@ -37,32 +37,32 @@ router.get('/playlists', (req, res) => {
         owned: playlist.owner.id === user.spotifyId,
         role: 'none'
       }))
-    ))
-    .then(playlistsFromApi => (
-      User.findOne({ spotifyId: user.spotifyId }, 'playlists')
-        .then(dbUser => {
-          // determine playlist roles
-          dbUser.playlists.forEach(userPlaylist => {
-            const matchingApiPlaylist = playlistsFromApi.find(item => (
-              item.spotifyId === userPlaylist.spotifyId
-            ));
-            if (!matchingApiPlaylist) return;
+    )
+    .then(playlistsFromApi =>
+      User.findOne({ spotifyId: user.spotifyId }, 'playlists').then(dbUser => {
+        // determine playlist roles
+        dbUser.playlists.forEach(userPlaylist => {
+          const matchingApiPlaylist = playlistsFromApi.find(
+            item => item.spotifyId === userPlaylist.spotifyId
+          );
+          if (!matchingApiPlaylist) return;
 
-            matchingApiPlaylist.role = userPlaylist.role;
-          });
-          // console.log(dbUser.playlists);
+          matchingApiPlaylist.role = userPlaylist.role;
+        });
+        // console.log(dbUser.playlists);
 
-          // store new set of playlists
-          dbUser.set({ playlists: playlistsFromApi });
-          return new Promise((resolve, reject) => {
-            dbUser.save()
-              .then(() => resolve(playlistsFromApi))
-              .catch(err => reject(err));
-          });
-        })
-    ))
+        // store new set of playlists
+        dbUser.set({ playlists: playlistsFromApi });
+        return new Promise((resolve, reject) => {
+          dbUser
+            .save()
+            .then(() => resolve(playlistsFromApi))
+            .catch(err => reject(err));
+        });
+      })
+    )
     .then(playlists => res.status(200).json(playlists))
-    .catch(() => res.status(500).json({ error: 'Error getting user\'s playlists.' }));
+    .catch(() => res.status(500).json({ error: "Error getting user's playlists." }));
 });
 
 router.post('/playlists', (req, res) => {
@@ -71,7 +71,7 @@ router.post('/playlists', (req, res) => {
 
   saveUserPlaylists(req.user, req.body.data.playlists)
     .then(() => res.status(200).end())
-    .catch(() => res.status(500).json({ error: 'Error saving user\'s playlists.' }));
+    .catch(() => res.status(500).json({ error: "Error saving user's playlists." }));
 });
 
 router.post('/aggregate', (req, res) => {
@@ -88,7 +88,7 @@ router.post('/aggregate', (req, res) => {
     saveUserPlaylists(req.user, roledPlaylists),
     getAllPlaylistTracks(req.user.spotifyId, req.user.accessToken, sheepPlaylists)
   ];
-  
+
   // we have all the tracks from the playlists, and we've saved the playlists to the db
   // now we hit the Spotify API to add them to the barn playlist
   Promise.all(promises)
@@ -110,21 +110,20 @@ router.post('/aggregate', (req, res) => {
             upsert: true,
             new: true
           }
-        )
-          .then(dbArtist => filterTracksForArtist(dbArtist, artist, barn.id));
+        ).then(dbArtist => filterTracksForArtist(dbArtist, artist, barn.id));
         artistSavePromises.push(artistPromise);
       });
       return Promise.all(artistSavePromises);
     })
-    .then(nestedArrOfTracks => nestedArrOfTracks.reduce((allTracks, trackList) => (
-      allTracks.concat(...trackList)
-    ), []))
+    .then(nestedArrOfTracks =>
+      nestedArrOfTracks.reduce((allTracks, trackList) => allTracks.concat(...trackList), [])
+    )
     .then(newTrackIds => {
       console.log(newTrackIds);
       return newTrackIds.map(trackId => buildSpotifyUri(trackId));
     })
-    .then(newTrackUris => (
-      addAllTracksToBarn(req.user.spotifyId, req.user.accessToken, barn, newTrackUris))
+    .then(newTrackUris =>
+      addAllTracksToBarn(req.user.spotifyId, req.user.accessToken, barn, newTrackUris)
     )
     .then(numberOfTracksAdded => {
       console.log(`Added ${numberOfTracksAdded} tracks to ${barn.name}.`);
@@ -142,10 +141,10 @@ function filterTracksForArtist(dbArtist, newArtist, barnId) {
   const dbArtistTracks = dbArtist.tracks;
   Object.values(newTracks).forEach(newTrack => {
     // check each new track against the db
-    const dbTrack = dbArtistTracks.find(item => (
-      item.spotifyId === newTrack.spotifyId
-      || item.normalizedName === newTrack.normalizedName
-    ));
+    const dbTrack = dbArtistTracks.find(
+      item =>
+        item.spotifyId === newTrack.spotifyId || item.normalizedName === newTrack.normalizedName
+    );
     if (dbTrack) {
       // this track has already been stored to the db - check if it's been stored to this barn
       if (!dbTrack.playlistIds.includes(barnId)) {
@@ -165,7 +164,8 @@ function filterTracksForArtist(dbArtist, newArtist, barnId) {
     }
   });
   return new Promise((resolve, reject) => {
-    dbArtist.save()
+    dbArtist
+      .save()
       .then(() => resolve(artistSongIdsToAdd))
       .catch(saveErr => reject(saveErr));
   });
@@ -177,7 +177,7 @@ function buildSpotifyUri(trackId) {
 
 function normalize(original) {
   const normalized = original.toLowerCase();
-  const symbols = new RegExp('[`~!@#$%^&*()\\s\\.,+=\\-\'\\[\\]\\{}|\\<\\>?]', 'g');
+  const symbols = new RegExp("[`~!@#$%^&*()\\s\\.,+=\\-'\\[\\]\\{}|\\<\\>?]", 'g');
   return normalized.replace(symbols, '');
 }
 
@@ -204,10 +204,7 @@ function deduplicateAndFormat(tracks) {
     }
 
     const normalizedTrackName = normalize(track.name);
-    if (!Object.prototype.hasOwnProperty.call(
-      artists[artistName].tracks,
-      normalizedTrackName
-    )) {
+    if (!Object.prototype.hasOwnProperty.call(artists[artistName].tracks, normalizedTrackName)) {
       artists[artistName].tracks[normalizedTrackName] = {
         name: track.name,
         spotifyId: track.id,
@@ -220,11 +217,7 @@ function deduplicateAndFormat(tracks) {
 }
 
 function saveUserPlaylists(user, playlists) {
-  return User.findOneAndUpdate(
-    { spotifyId: user.spotifyId },
-    { playlists },
-    { new: true }
-  );
+  return User.findOneAndUpdate({ spotifyId: user.spotifyId }, { playlists }, { new: true });
 }
 
 function getSpotifyPlaylists(userId, accessToken) {
@@ -232,7 +225,7 @@ function getSpotifyPlaylists(userId, accessToken) {
   const spotifyReq = axios.create({
     method: 'get',
     url: `https://api.spotify.com/v1/users/${userId}/playlists?limit=50`,
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { Authorization: `Bearer ${accessToken}` }
   });
 
   // TODO: refactor to use paging and promise-throttle
@@ -257,12 +250,15 @@ function getSpotifyPlaylists(userId, accessToken) {
 function getAllPlaylistTracks(userId, accessToken, playlists) {
   const promiseThrottle = new PromiseThrottle({
     requestsPerSecond: 10,
-    promiseImplementation: Promise,
+    promiseImplementation: Promise
   });
 
-  const promises = playlists.map(playlist => promiseThrottle.add(
-    // you can either do it like this:
-    getPlaylistTracks.bind(this, accessToken, playlist))
+  const promises = playlists.map(
+    playlist =>
+      promiseThrottle.add(
+        // you can either do it like this:
+        getPlaylistTracks.bind(this, accessToken, playlist)
+      )
     // or in an anon no-arg function def:
     // function() {
     //    return getPlaylistTracks(userId, accessToken, playlist);
@@ -273,9 +269,11 @@ function getAllPlaylistTracks(userId, accessToken, playlists) {
   return new Promise((resolve, reject) => {
     Promise.all(promises)
       .then(arraysOfPlaylistTracks => {
-        const tracks = arraysOfPlaylistTracks.reduce((allTracks, trackList) => (
-          allTracks.concat(trackList.map(track => track.track))
-        ), [])
+        const tracks = arraysOfPlaylistTracks
+          .reduce(
+            (allTracks, trackList) => allTracks.concat(trackList.map(track => track.track)),
+            []
+          )
           .filter(track => track);
         resolve(tracks);
       })
@@ -288,17 +286,16 @@ function getPlaylistTracks(accessToken, playlist) {
     method: 'get',
     url: `${playlist.href}/tracks`,
     headers: { Authorization: `Bearer ${accessToken}` },
-    params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100 },
+    params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100 }
   };
 
   return new Promise((resolve, reject) => {
     pagePromises(requestConfig)
       .then(promises => {
-        Promise.all(promises)
-          .then(trackPages => {
-            const tracks = trackPages.reduce((allTracks, page) => allTracks.concat(page.items), []);
-            resolve(tracks);
-          });
+        Promise.all(promises).then(trackPages => {
+          const tracks = trackPages.reduce((allTracks, page) => allTracks.concat(page.items), []);
+          resolve(tracks);
+        });
       })
       .catch(err => reject(err));
   });
@@ -306,10 +303,12 @@ function getPlaylistTracks(accessToken, playlist) {
 
 function addTracksToBarn(userId, accessToken, barn, tracks) {
   return new Promise((resolve, reject) => {
-    axios.post(`https://api.spotify.com/v1/users/${userId}/playlists/${barn.id}/tracks`,
-      { uris: tracks },
-      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
-    )
+    axios
+      .post(
+        `https://api.spotify.com/v1/users/${userId}/playlists/${barn.id}/tracks`,
+        { uris: tracks },
+        { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+      )
       .then(response => {
         if (response.status === 201) resolve();
         else reject(Error(`Error: Spotify API responded with unsuccessful status ${response.status}.`));
@@ -324,7 +323,7 @@ function addTracksToBarn(userId, accessToken, barn, tracks) {
 function addAllTracksToBarn(userId, accessToken, barn, tracks) {
   const promiseThrottle = new PromiseThrottle({
     requestsPerSecond: 10,
-    promiseImplementation: Promise,
+    promiseImplementation: Promise
   });
 
   const numTracks = tracks.length;
@@ -337,8 +336,13 @@ function addAllTracksToBarn(userId, accessToken, barn, tracks) {
     if (tracksAdded + 99 <= numTracks) {
       promises.push(
         promiseThrottle.add(
-          addTracksToBarn.bind(this, userId, accessToken, barn,
-            tracks.slice(tracksAdded, tracksAdded + 100))
+          addTracksToBarn.bind(
+            this,
+            userId,
+            accessToken,
+            barn,
+            tracks.slice(tracksAdded, tracksAdded + 100)
+          )
         )
       );
     } else {
@@ -350,11 +354,11 @@ function addAllTracksToBarn(userId, accessToken, barn, tracks) {
     }
   }
 
-  return new Promise((resolve, reject) => (
+  return new Promise((resolve, reject) =>
     Promise.all(promises)
       .then(() => resolve(numTracks))
       .catch(err => reject(err))
-  ));
+  );
 }
 
 function pagePromises(axiosConfig) {
@@ -362,11 +366,12 @@ function pagePromises(axiosConfig) {
 
   const promiseThrottle = new PromiseThrottle({
     requestsPerSecond: 10,
-    promiseImplementation: Promise,
+    promiseImplementation: Promise
   });
 
   return new Promise((resolve, reject) => {
-    axios.request(Object.assign({}, axiosConfig, { params: { limit: 1 } }))
+    axios
+      .request(Object.assign({}, axiosConfig, { params: { limit: 1 } }))
       .then(response => {
         const promises = [];
         let offset = 0;
@@ -386,7 +391,8 @@ function pagePromises(axiosConfig) {
 
 function getItems(axiosConfig) {
   return new Promise((resolve, reject) => {
-    axios.request(axiosConfig)
+    axios
+      .request(axiosConfig)
       .then(response => {
         resolve(response.data);
       })

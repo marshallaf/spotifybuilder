@@ -18,7 +18,7 @@ mongoose.connect(process.env.MONGO_URI);
 
 // initialize express
 const app = express();
-app.set('port', (process.env.PORT || 8080));
+app.set('port', process.env.PORT || 8080);
 
 // enable parsing of http body
 app.use(bodyParser.urlencoded({ extended: false }));

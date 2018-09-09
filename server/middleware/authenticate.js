@@ -12,7 +12,7 @@ module.exports = (req, res, next) => {
 
   return jwt.verify(req.cookies.token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) {
-      return res.status(401).json({ error: 'Error verifying user\'s session token.' });
+      return res.status(401).json({ error: "Error verifying user's session token." });
     }
 
     const userId = decoded.sub;

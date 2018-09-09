@@ -7,7 +7,7 @@ module.exports = new SpotifyStrategy(
     clientID: process.env.SPOTIFY_KEY,
     clientSecret: process.env.SPOTIFY_SECRET,
     callbackURL: `${process.env.APP_URL}/auth/spotify/callback`,
-    session: false,
+    session: false
   },
   (accessToken, refreshToken, response, done) => {
     // makes it async
@@ -29,7 +29,11 @@ module.exports = new SpotifyStrategy(
         }
       )
         .then(user => {
-          console.log(`User id: ${user.spotifyId}, name: ${user.displayName}: Found or created, creating session.`);
+          console.log(
+            `User id: ${user.spotifyId}, name: ${
+              user.displayName
+            }: Found or created, creating session.`
+          );
           const token = createJWT(user);
 
           // return to routing (/auth/login)
