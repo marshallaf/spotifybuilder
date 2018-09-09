@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 
 const Playlist = ({
   name,
@@ -19,5 +20,13 @@ const Playlist = ({
     <div className='playlist-name'>{name}</div>
   </div>
 );
+
+Playlist.propTypes = {
+  name: PropTypes.string.isRequired,
+  role: PropTypes.string.isRequired,
+  owned: PropTypes.bool.isRequired,
+  handleBarn: PropTypes.func.isRequired,
+  handleSheep: PropTypes.func.isRequired
+};
 
 export default Playlist;
