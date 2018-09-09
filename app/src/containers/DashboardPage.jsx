@@ -43,19 +43,25 @@ class DashboardPage extends React.Component {
   }
 
   changePlaylistRole(position, newRole) {
-    const { prevBarnIndex, playlists } = this.state;
+    const { barnIndex, playlists } = this.state;
     const newPlaylists = [...playlists];
     newPlaylists[position].role = newRole;
 
-    let barnIndex = prevBarnIndex;
+    let newBarnIndex;
     if (newRole === 'barn') {
-      barnIndex = position;
-      if (prevBarnIndex !== -1) newPlaylists[prevBarnIndex].role = 'none';
-    } else if (prevBarnIndex === position) barnIndex = -1;
+      newBarnIndex = position;
+      if (barnIndex !== -1) {
+        newPlaylists[barnIndex].role = 'none';
+      }
+    } else if (newRole === 'none' && position === barnIndex) {
+      newBarnIndex = -1;
+    } else {
+      newBarnIndex = barnIndex;
+    }
 
     this.setState({
       playlists: newPlaylists,
-      barnIndex,
+      barnIndex: newBarnIndex
     });
   }
 
