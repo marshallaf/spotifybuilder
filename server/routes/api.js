@@ -90,14 +90,13 @@ router.post('/aggregate', (req, res) => {
   // we have all the tracks from the playlists, and we've saved the playlists to the db
   // now we hit the Spotify API to add them to the barn playlist
   Promise.all(promises)
-    .then(resolvedPromises => {
-      const tracks = resolvedPromises[1];
-      const artists = deduplicateAndFormat(tracks);
+    .then(resolvedPromises => resolvedPromises[1])
+    .then(tracks => deduplicateAndFormat(tracks))
+    .then(artists => {
+      const artistSavePromises = [];
 
-      const idsToAdd = [];
       Object.values(artists).forEach(artist => {
-        console.log(`Processing new artist: ${artist.name}`);
-        Artist.findOneAndUpdate(
+        const artistPromise = Artist.findOneAndUpdate(
           { $or: [{ name: artist.name }, { spotifyId: artist.spotifyId }] },
           {
             $setOnInsert: {
@@ -110,95 +109,63 @@ router.post('/aggregate', (req, res) => {
             new: true
           }
         )
-          .then(dbArtist => {
-            const newTracks = artist.tracks;
-            const dbArtistTracks = dbArtist.tracks;
-            Object.values(newTracks).forEach(newTrack => {
-              console.log(`Processing track '${newTrack.name}' for artist ${dbArtist.name}`);
-              const dbTrack = dbArtistTracks.find(item => (
-                item.spotifyId === newTrack.spotifyId
-                || item.normalizedName === newTrack.normalizedName
-              ));
-              if (dbTrack) {
-                console.log(`Track '${newTrack.name}' found in artist ${dbArtist.name}, checking playlists.`);
-                if (!dbTrack.playlists.includes(barn.id)) {
-                  console.log(`Track '${newTrack.name}' not found in playlist ${barn.id}, adding.`);
-                  dbTrack.playlists.push(barn.id);
-                  idsToAdd.push(newTrack.spotifyId);
-                }
-              } else {
-                console.log(`Track '${newTrack.name}' not found in artist ${dbArtist.name}, adding.`);
-                dbArtist.tracks.push({
-                  name: newTrack.name,
-                  spotifyId: newTrack.spotifyId,
-                  normalizedName: newTrack.normalizedName,
-                  playlistIds: [barn.id]
-                });
-                idsToAdd.push(newTrack.spotifyId);
-              }
-            });
-            dbArtist.save()
-              .then(() => res.status(200).end())
-              .catch(saveErr => {
-                console.log(saveErr);
-                res.status(500).json({ error: 'Error saving artist.' });
-              });
-          })
-          .catch(retErr => {
-            console.log(retErr);
-            res.status(500).json({ error: 'Error retrieving artist.' });
-          });
+          .then(dbArtist => filterTracksForArtist(dbArtist, artist, barn.id));
+        artistSavePromises.push(artistPromise);
       });
-
-      console.log(JSON.stringify(idsToAdd));
+      return Promise.all(artistSavePromises);
     })
+    .then(nestedArrOfTracks => nestedArrOfTracks.reduce((allTracks, trackList) => (
+      allTracks.concat(...trackList)
+    ), []))
+    .then(newTrackIds => newTrackIds.map(trackId => buildSpotifyUri(trackId)))
+    .then(newTrackUris => (
+      addAllTracksToBarn(req.user.spotifyId, req.user.accessToken, barn, newTrackUris))
+    )
+    .then(() => res.status(200).end())
     .catch(bundleErr => {
       console.log(bundleErr);
       res.status(500).json({ error: 'Error bundling playlists.' });
     });
-
-  return;
-
-  Promise.all(promises)
-  .then(resArr => {
-
-    User.findById(req.user._id, 'seenTracks', (err, user) => {
-      if (err) {
-        console.log('error reading database', err);
-        res.status(500).end();
-      }
-
-      // removes tracks the user has bundled in the past
-      const doubleUniqueTracks = uniqueTracks.filter(track => {
-        return !(user.seenTracks.id(track._id));
-      });
-
-      // create an array of the song URIs that the Spotify API expects
-      const idsToAdd = doubleUniqueTracks.map(track => `spotify:track:${track.spotifyId}`);
-
-      addAllTracksToBarn(req.user.spotify.id, req.user.spotify.accessToken, barn, idsToAdd)
-      .then(() => {
-        console.log('saving tracks');
-        user.seenTracks.push(...doubleUniqueTracks);
-        user.save(err => {
-          if (err) {
-            console.log('/api/aggregate::', err, '::');
-            return res.status(500).end();
-          }
-          return res.status(200).end();
-        });
-      })
-      .catch(err => {
-        console.log('/api/aggregate::', err, '::');
-        return res.status(500).end();
-      });
-    });
-  })
-  .catch(err => {
-    console.log('/api/aggregate::', err, '::');
-    res.status(500).end();
-  });
 });
+
+function filterTracksForArtist(dbArtist, newArtist, barnId) {
+  const artistSongIdsToAdd = [];
+  const newTracks = newArtist.tracks;
+  const dbArtistTracks = dbArtist.tracks;
+  Object.values(newTracks).forEach(newTrack => {
+    console.log(`Processing track '${newTrack.name}' for artist ${dbArtist.name}`);
+    const dbTrack = dbArtistTracks.find(item => (
+      item.spotifyId === newTrack.spotifyId
+      || item.normalizedName === newTrack.normalizedName
+    ));
+    if (dbTrack) {
+      console.log(`Track '${newTrack.name}' found in artist ${dbArtist.name}, checking playlists.`);
+      if (!dbTrack.playlistIds.includes(barnId)) {
+        console.log(`Track '${newTrack.name}' not found in playlist ${barnId}, adding.`);
+        dbTrack.playlistIds.push(barnId);
+        artistSongIdsToAdd.push(newTrack.spotifyId);
+      }
+    } else {
+      console.log(`Track '${newTrack.name}' not found in artist ${dbArtist.name}, adding.`);
+      dbArtist.tracks.push({
+        name: newTrack.name,
+        spotifyId: newTrack.spotifyId,
+        normalizedName: newTrack.normalizedName,
+        playlistIds: [barnId]
+      });
+      artistSongIdsToAdd.push(newTrack.spotifyId);
+    }
+  });
+  return new Promise((resolve, reject) => {
+    dbArtist.save()
+      .then(() => resolve(artistSongIdsToAdd))
+      .catch(saveErr => reject(saveErr));
+  });
+}
+
+function buildSpotifyUri(trackId) {
+  return `spotify:track:${trackId}`;
+}
 
 function normalize(original) {
   const normalized = original.toLowerCase();
