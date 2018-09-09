@@ -288,6 +288,7 @@ function getPlaylistTracks(accessToken, playlist) {
     headers: { Authorization: `Bearer ${accessToken}` },
     params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100 }
   };
+  console.log(requestConfig);
 
   return new Promise((resolve, reject) => {
     pagePromises(requestConfig)
@@ -314,7 +315,7 @@ function addTracksToBarn(userId, accessToken, barn, tracks) {
         else reject(Error(`Error: Spotify API responded with unsuccessful status ${response.status}.`));
       })
       .catch(err => {
-        console.log(err.response.data.error);
+        console.log(err);
         reject(err);
       });
   });
