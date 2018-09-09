@@ -115,7 +115,10 @@ router.post('/aggregate', (req, res) => {
     .then(nestedArrOfTracks => nestedArrOfTracks.reduce((allTracks, trackList) => (
       allTracks.concat(...trackList)
     ), []))
-    .then(newTrackIds => newTrackIds.map(trackId => buildSpotifyUri(trackId)))
+    .then(newTrackIds => {
+      console.log(newTrackIds);
+      return newTrackIds.map(trackId => buildSpotifyUri(trackId));
+    })
     .then(newTrackUris => (
       addAllTracksToBarn(req.user.spotifyId, req.user.accessToken, barn, newTrackUris))
     )
@@ -268,7 +271,7 @@ function getAllPlaylistTracks(userId, accessToken, playlists) {
           .filter(track => track);
         resolve(tracks);
       })
-      .catch(() => reject());
+      .catch(err => reject(err));
   });
 }
 
@@ -289,7 +292,7 @@ function getPlaylistTracks(accessToken, playlist) {
             resolve(tracks);
           });
       })
-      .catch(() => reject());
+      .catch(err => reject(err));
   });
 }
 
