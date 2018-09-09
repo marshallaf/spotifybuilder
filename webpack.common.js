@@ -2,7 +2,7 @@ const path = require('path');
 
 module.exports = {
   // entry point to the client-side application
-  entry: path.join(__dirname, '/app/src/app.js'),
+  entry: path.join(__dirname, '/app/src/app.jsx'),
   // output options
   output: {
     path: path.join(__dirname, '/app/build'),
@@ -12,7 +12,7 @@ module.exports = {
     // rules for loaders, parsers, etc.
     rules: [
       {
-        test: /\.js$/,
+        test: /\.jsx?$/,
         include: [
           path.join(__dirname, '/app/src')
         ],
@@ -36,5 +36,8 @@ module.exports = {
         ],
       }
     ],
+  },
+  resolve: {
+    extensions: ['.js', '.jsx'],
   }
 };

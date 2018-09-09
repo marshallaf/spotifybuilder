@@ -1,6 +1,6 @@
 import React from 'react';
 import axios from 'axios';
-import PlaylistCtr from './PlaylistCtr';
+import PlaylistContainer from './PlaylistContainer';
 import UserInfo from '../components/UserInfo';
 
 class DashboardPage extends React.Component {
@@ -78,7 +78,7 @@ class DashboardPage extends React.Component {
         {this.state.playlists.length !== 0 && 
           <div className='playlists-container'>
             {this.state.playlists.map((playlist, index) => (
-              <PlaylistCtr
+              <PlaylistContainer
                 key={index}
                 name={playlist.name}
                 role={playlist.role}
