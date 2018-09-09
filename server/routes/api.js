@@ -29,36 +29,40 @@ router.get('/playlists', (req, res) => {
   const { user } = req;
 
   getSpotifyPlaylists(user.spotifyId, user.accessToken)
-    .then(playlists => {
-      const playlistsFromApi = playlists.map(playlist => ({
+    .then(playlists => (
+      playlists.map(playlist => ({
         name: playlist.name,
-        id: playlist.id,
+        spotifyId: playlist.id,
         href: playlist.href,
         owned: playlist.owner.id === user.spotifyId,
         role: 'none'
-      }));
-
+      }))
+    ))
+    .then(playlistsFromApi => (
       User.findOne({ spotifyId: user.spotifyId }, 'playlists')
         .then(dbUser => {
           // determine playlist roles
-          const updatedPlaylists = [];
           dbUser.playlists.forEach(userPlaylist => {
-            const matchingApiPlaylist = playlistsFromApi.find(item => item.id === userPlaylist.id);
+            const matchingApiPlaylist = playlistsFromApi.find(item => (
+              item.spotifyId === userPlaylist.spotifyId
+            ));
             if (!matchingApiPlaylist) return;
 
             matchingApiPlaylist.role = userPlaylist.role;
-            updatedPlaylists.push(matchingApiPlaylist);
           });
+          // console.log(dbUser.playlists);
 
           // store new set of playlists
-          dbUser.set({ playlists: updatedPlaylists });
-          dbUser.save()
-            .then(() => res.status(200).json(playlistsFromApi))
-            .catch(() => res.status(500).json({ error: 'Error saving user\'s new playlists.' }));
+          dbUser.set({ playlists: playlistsFromApi });
+          return new Promise((resolve, reject) => {
+            dbUser.save()
+              .then(() => resolve(playlistsFromApi))
+              .catch(err => reject(err));
+          });
         })
-        .catch(() => res.status(500).json({ error: 'User not found.' }));
-    })
-    .catch(() => res.status(404).json({ error: 'Error getting user\'s playlists.' }));
+    ))
+    .then(playlists => res.status(200).json(playlists))
+    .catch(() => res.status(500).json({ error: 'Error getting user\'s playlists.' }));
 });
 
 router.post('/playlists', (req, res) => {
@@ -218,7 +222,8 @@ function deduplicateAndFormat(tracks) {
 function saveUserPlaylists(user, playlists) {
   return User.findOneAndUpdate(
     { spotifyId: user.spotifyId },
-    { playlists }
+    { playlists },
+    { new: true }
   );
 }
 
