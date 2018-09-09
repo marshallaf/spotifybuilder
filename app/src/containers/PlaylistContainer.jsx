@@ -12,17 +12,17 @@ class PlaylistContainer extends React.Component {
 
   handleBarn() {
     const {
-      owned, barn, pos, changeRole
+      owned, barn, position, changeRole
     } = this.props;
     if (!owned) return;
     const newRole = (barn) ? 'none' : 'barn';
-    changeRole(pos, newRole);
+    changeRole(position, newRole);
   }
 
   handleSheep() {
-    const { role, changeRole, pos } = this.props;
+    const { role, changeRole, position } = this.props;
     const newRole = role === 'sheep' ? 'none' : 'sheep';
-    changeRole(pos, newRole);
+    changeRole(position, newRole);
   }
 
   render() {
@@ -42,7 +42,7 @@ class PlaylistContainer extends React.Component {
 PlaylistContainer.propTypes = {
   barn: PropTypes.bool.isRequired,
   owned: PropTypes.bool.isRequired,
-  pos: PropTypes.number.isRequired,
+  position: PropTypes.number.isRequired,
   changeRole: PropTypes.func.isRequired,
   role: PropTypes.string.isRequired,
   name: PropTypes.string.isRequired

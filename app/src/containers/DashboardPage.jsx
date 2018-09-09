@@ -23,73 +23,79 @@ class DashboardPage extends React.Component {
   componentWillMount() {
     // get user information
     axios.get('/api/user', { withCredentials: true })
-    .then(response => {
-      this.setState({
-        displayName: response.data.spotify.displayName,
-        imageUrl: response.data.spotify.image,
+      .then(response => {
+        this.setState({
+          displayName: response.data.spotify.displayName,
+          imageUrl: response.data.spotify.image,
+        });
+      })
+      .catch(err => {
+        if (err.response.data.error) console.error(err.response.data.error);
+        else console.error('error fetching user data');
       });
-    })
-    .catch(err => {
-      if (err.response.data.error) console.error(err.response.data.error);
-      else console.error('error fetching user data');
-    });
 
     // get playlists and current bundle roles
     axios.get('/api/playlists', { withCredentials: true })
-    .then(response => {
-      const barnIndex = response.data.findIndex(playlist => playlist.role == 'barn');
-      this.setState({ playlists: response.data, barnIndex: barnIndex })
-    });
+      .then(response => {
+        const barnIndex = response.data.findIndex(playlist => playlist.role === 'barn');
+        this.setState({ playlists: response.data, barnIndex });
+      });
   }
 
   changePlaylistRole(position, newRole) {
-    let newPlaylists = [...this.state.playlists];
+    const { prevBarnIndex, playlists } = this.state;
+    const newPlaylists = [...playlists];
     newPlaylists[position].role = newRole;
 
-    let barnIndex = this.state.barnIndex;
-    if (newRole == 'barn') {
+    let barnIndex = prevBarnIndex;
+    if (newRole === 'barn') {
       barnIndex = position;
-      if (this.state.barnIndex != -1) newPlaylists[this.state.barnIndex].role = 'none';
-    } else if (this.state.barnIndex == position) barnIndex = -1;
+      if (prevBarnIndex !== -1) newPlaylists[prevBarnIndex].role = 'none';
+    } else if (prevBarnIndex === position) barnIndex = -1;
 
     this.setState({
       playlists: newPlaylists,
-      barnIndex: barnIndex,
+      barnIndex,
     });
   }
 
   savePlaylists() {
-    axios.post('/api/playlists', { withCredentials: true, data: {playlists: this.state.playlists}});
+    const { playlists } = this.state;
+    axios.post('/api/playlists', { withCredentials: true, data: { playlists } });
   }
 
   aggregate() {
-    axios.post('/api/aggregate', { withCredentials: true, data: {playlists: this.state.playlists}});
+    const { playlists } = this.state;
+    axios.post('/api/aggregate', { withCredentials: true, data: { playlists } });
   }
 
   render() {
+    const {
+      displayName, imageUrl, playlists, barnIndex
+    } = this.state;
     return (
       <div className='container'>
         <UserInfo
-          displayName={this.state.displayName}
-          imageUrl={this.state.imageUrl}
+          displayName={displayName}
+          imageUrl={imageUrl}
           save={this.savePlaylists}
           bundle={this.aggregate}
         />
-        {this.state.playlists.length !== 0 && 
+        {playlists.length !== 0 && (
           <div className='playlists-container'>
-            {this.state.playlists.map((playlist, index) => (
+            {playlists.map((playlist, index) => (
               <PlaylistContainer
-                key={index}
+                key={playlist.name}
                 name={playlist.name}
                 role={playlist.role}
                 owned={playlist.owned}
-                pos={index}
-                barn={index == this.state.barnIndex}
-                changeRole={this.changePlaylistRole} 
+                position={index}
+                barn={index === barnIndex}
+                changeRole={this.changePlaylistRole}
               />
             ))}
           </div>
-        }
+        )}
       </div>
     );
   }
