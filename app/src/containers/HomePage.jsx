@@ -1,11 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-class HomePage extends React.Component {
-  constructor(props) {
-    super(props);
-  }
-
+class HomePage extends React.PureComponent {
   render() {
     return (
       <div>
