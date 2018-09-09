@@ -6,6 +6,7 @@ const axios = require('axios');
 const PromiseThrottle = require('promise-throttle');
 const md5 = require('md5');
 const User = require('../models/users');
+const Artist = require('../models/artists');
 
 const router = express.Router();
 router.use(cookieParser());
@@ -90,16 +91,71 @@ router.post('/aggregate', (req, res) => {
   // now we hit the Spotify API to add them to the barn playlist
   Promise.all(promises)
     .then(resolvedPromises => {
-      // console.log(resolvedPromises);
-
       const tracks = resolvedPromises[1];
       const artists = deduplicateAndFormat(tracks);
 
-      
+      const idsToAdd = [];
+      Object.values(artists).forEach(artist => {
+        console.log(`Processing new artist: ${artist.name}`);
+        Artist.findOneAndUpdate(
+          { $or: [{ name: artist.name }, { spotifyId: artist.spotifyId }] },
+          {
+            $setOnInsert: {
+              name: artist.name,
+              spotifyId: artist.spotifyId
+            }
+          },
+          {
+            upsert: true,
+            new: true
+          }
+        )
+          .then(dbArtist => {
+            const newTracks = artist.tracks;
+            const dbArtistTracks = dbArtist.tracks;
+            Object.values(newTracks).forEach(newTrack => {
+              console.log(`Processing track '${newTrack.name}' for artist ${dbArtist.name}`);
+              const dbTrack = dbArtistTracks.find(item => (
+                item.spotifyId === newTrack.spotifyId
+                || item.normalizedName === newTrack.normalizedName
+              ));
+              if (dbTrack) {
+                console.log(`Track '${newTrack.name}' found in artist ${dbArtist.name}, checking playlists.`);
+                if (!dbTrack.playlists.includes(barn.id)) {
+                  console.log(`Track '${newTrack.name}' not found in playlist ${barn.id}, adding.`);
+                  dbTrack.playlists.push(barn.id);
+                  idsToAdd.push(newTrack.spotifyId);
+                }
+              } else {
+                console.log(`Track '${newTrack.name}' not found in artist ${dbArtist.name}, adding.`);
+                dbArtist.tracks.push({
+                  name: newTrack.name,
+                  spotifyId: newTrack.spotifyId,
+                  normalizedName: newTrack.normalizedName,
+                  playlistIds: [barn.id]
+                });
+                idsToAdd.push(newTrack.spotifyId);
+              }
+            });
+            dbArtist.save()
+              .then(() => res.status(200).end())
+              .catch(saveErr => {
+                console.log(saveErr);
+                res.status(500).json({ error: 'Error saving artist.' });
+              });
+          })
+          .catch(retErr => {
+            console.log(retErr);
+            res.status(500).json({ error: 'Error retrieving artist.' });
+          });
+      });
 
-      console.log(JSON.stringify(artists));
+      console.log(JSON.stringify(idsToAdd));
     })
-    .catch(() => res.status(500).json({ error: 'Error bundling playlists.' }));
+    .catch(bundleErr => {
+      console.log(bundleErr);
+      res.status(500).json({ error: 'Error bundling playlists.' });
+    });
 
   return;
 
@@ -179,7 +235,8 @@ function deduplicateAndFormat(tracks) {
     )) {
       artists[artistName].tracks[normalizedTrackName] = {
         name: track.name,
-        spotifyId: track.id
+        spotifyId: track.id,
+        normalizedName: normalizedTrackName
       };
     }
   });
