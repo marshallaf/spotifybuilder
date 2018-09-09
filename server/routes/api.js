@@ -284,7 +284,6 @@ function getPlaylistTracks(accessToken, playlist) {
     headers: { Authorization: `Bearer ${accessToken}` },
     params: { fields: 'items(track(name,artists(name),id,explicit)),total', limit: 100 }
   };
-  console.log(requestConfig);
 
   return new Promise((resolve, reject) => {
     pagePromises(requestConfig)
