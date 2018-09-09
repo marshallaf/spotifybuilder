@@ -122,7 +122,10 @@ router.post('/aggregate', (req, res) => {
     .then(newTrackUris => (
       addAllTracksToBarn(req.user.spotifyId, req.user.accessToken, barn, newTrackUris))
     )
-    .then(() => res.status(200).end())
+    .then(numberOfTracksAdded => {
+      console.log(`Added ${numberOfTracksAdded} tracks to ${barn.name}.`);
+      res.status(200).json({ success: `Added ${numberOfTracksAdded} tracks to ${barn.name}.` });
+    })
     .catch(bundleErr => {
       console.log(bundleErr);
       res.status(500).json({ error: 'Error bundling playlists.' });
@@ -320,6 +323,10 @@ function addAllTracksToBarn(userId, accessToken, barn, tracks) {
   });
 
   const numTracks = tracks.length;
+  if (tracks.length <= 0) {
+    return new Promise(resolve => resolve(0));
+  }
+
   const promises = [];
   for (let tracksAdded = 0; tracksAdded <= numTracks; tracksAdded += 100) {
     if (tracksAdded + 99 <= numTracks) {
@@ -338,7 +345,11 @@ function addAllTracksToBarn(userId, accessToken, barn, tracks) {
     }
   }
 
-  return Promise.all(promises);
+  return new Promise((resolve, reject) => (
+    Promise.all(promises)
+      .then(() => resolve(numTracks))
+      .catch(err => reject(err))
+  ));
 }
 
 function pagePromises(axiosConfig) {
