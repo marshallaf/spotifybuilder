@@ -14,6 +14,7 @@ if (process.env.NODE_ENV === 'development') {
 mongoose.Promise = global.Promise;
 mongoose.set('useFindAndModify', false);
 mongoose.set('useNewUrlParser', true);
+mongoose.set('useCreateIndex', true);
 mongoose.connect(process.env.MONGO_URI);
 
 // initialize express
