@@ -49,7 +49,6 @@ router.get('/playlists', (req, res) => {
 
           matchingApiPlaylist.role = userPlaylist.role;
         });
-        // console.log(dbUser.playlists);
 
         // store new set of playlists
         dbUser.set({ playlists: playlistsFromApi });
@@ -118,10 +117,7 @@ router.post('/aggregate', (req, res) => {
     .then(nestedArrOfTracks =>
       nestedArrOfTracks.reduce((allTracks, trackList) => allTracks.concat(...trackList), [])
     )
-    .then(newTrackIds => {
-      console.log(newTrackIds);
-      return newTrackIds.map(trackId => buildSpotifyUri(trackId));
-    })
+    .then(newTrackIds => newTrackIds.map(trackId => buildSpotifyUri(trackId)))
     .then(newTrackUris =>
       addAllTracksToBarn(req.user.spotifyId, req.user.accessToken, barn, newTrackUris)
     )
@@ -306,7 +302,7 @@ function addTracksToBarn(userId, accessToken, barn, tracks) {
   return new Promise((resolve, reject) => {
     axios
       .post(
-        `https://api.spotify.com/v1/users/${userId}/playlists/${barn.id}/tracks`,
+        `https://api.spotify.com/v1/users/${userId}/playlists/${barn.spotifyId}/tracks`,
         { uris: tracks },
         { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
       )
