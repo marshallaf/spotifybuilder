@@ -25,8 +25,8 @@ class DashboardPage extends React.Component {
     axios.get('/api/user', { withCredentials: true })
       .then(response => {
         this.setState({
-          displayName: response.data.spotify.displayName,
-          imageUrl: response.data.spotify.image,
+          displayName: response.data.displayName,
+          imageUrl: response.data.image,
         });
       })
       .catch(err => {

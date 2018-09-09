@@ -29,7 +29,7 @@ module.exports = new SpotifyStrategy(
         }
       )
         .then(user => {
-          console.log('User found or created, creating session.');
+          console.log(`User id: ${user.spotifyId}, name: ${user.displayName}: Found or created, creating session.`);
           const token = createJWT(user);
 
           // return to routing (/auth/login)
