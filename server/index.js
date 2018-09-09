@@ -6,7 +6,7 @@ const passport = require('passport');
 const cookieParser = require('cookie-parser');
 
 // load environment variables if in dev
-if (process.env.DEV_MODE == 1) {
+if (process.env.NODE_ENV === 'development') {
   require('dotenv').load();
 }
 

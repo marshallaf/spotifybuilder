@@ -1,10 +1,6 @@
-/*eslint-env node*/
-
 const path = require('path');
 
 module.exports = {
-  // configures optimizations for build mode
-  mode: 'development',
   // entry point to the client-side application
   entry: path.join(__dirname, '/app/src/app.js'),
   // output options
@@ -22,7 +18,7 @@ module.exports = {
         ],
         loader: 'babel-loader',
         options: {
-          presets: [ 
+          presets: [
             '@babel/preset-env', // compiles to latest yearly release of JS
             '@babel/preset-react' // compiles React plugins
           ],
@@ -40,9 +36,5 @@ module.exports = {
         ],
       }
     ],
-  },
-  // when run, webpack will stay active and rebuild the files whenever it sees that one has changed
-  watch: true,
-  // add source info for browser devtools - negatively impacts build speed
-  devtool: 'source-map',
+  }
 };
