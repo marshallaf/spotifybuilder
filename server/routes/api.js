@@ -109,7 +109,7 @@ router.post('/aggregate', (req, res) => {
             upsert: true,
             new: true
           }
-        ).then(dbArtist => filterTracksForArtist(dbArtist, artist, barn.id));
+        ).then(dbArtist => filterTracksForArtist(dbArtist, artist, barn.spotifyId));
         artistSavePromises.push(artistPromise);
       });
       return Promise.all(artistSavePromises);
