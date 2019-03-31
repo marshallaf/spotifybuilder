@@ -96,7 +96,7 @@ router.post('/aggregate', (req, res) => {
     .then(artists => {
       const artistSavePromises = [];
 
-      Object.values(artists).forEach(artist => {
+      artists.forEach(artist => {
         const artistPromise = Artist.findOneAndUpdate(
           { $or: [{ name: artist.name }, { spotifyId: artist.spotifyId }] },
           {
@@ -209,7 +209,7 @@ function deduplicateAndFormat(tracks) {
     }
   });
 
-  return artists;
+  return Object.values(artists);
 }
 
 function saveUserPlaylists(user, playlists) {
