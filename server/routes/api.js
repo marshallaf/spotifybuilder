@@ -212,6 +212,35 @@ function deduplicateAndFormat(tracks) {
   return Object.values(artists);
 }
 
+router.post('/filterArtist', (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Session no longer valid.' });
+  }
+  const { artistToAdd } = req.body.data;
+  if (!artistToAdd) res.status(400).json({ error: 'POST to /api/filterArtist must contain an artist to filter.' });
+
+  return User.findOne({ spotifyId: req.user.spotifyId })
+    .then(user => {
+      const filteredArtistIds = user.filteredArtists.map(artist => artist.spotifyId);
+      if (!filteredArtistIds.includes(artistToAdd.id)) {
+        const artistToFilter = {
+          name: artistToAdd.name,
+          spotifyId: artistToAdd.id
+        };
+
+        user.filteredArtists.push(artistToFilter);
+        return user.save()
+          .then(() => res.status(200).json({ success: `Artist ${artistToAdd.id} - ${artistToAdd.name} added to filter list.` }));
+      }
+      
+      return res.status(200).json({ success: `Artist ${artistToAdd.id} - ${artistToAdd.name} already in filter list.` });
+    })
+    .catch(filterErr => res.status(500).json({
+      errorMessage: `Error saving new filtered artist ${artistToAdd.id} - ${artistToAdd.name}.`,
+      error: filterErr
+    }));
+});
+
 function saveUserPlaylists(user, playlists) {
   return User.findOneAndUpdate({ spotifyId: user.spotifyId }, { playlists }, { new: true });
 }
