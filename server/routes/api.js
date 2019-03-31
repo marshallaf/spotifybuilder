@@ -93,6 +93,7 @@ router.post('/aggregate', (req, res) => {
   Promise.all(promises)
     .then(resolvedPromises => resolvedPromises[1])
     .then(tracks => deduplicateAndFormat(tracks))
+    .then(artists => removeFilteredArtists(req.user, artists))
     .then(artists => {
       const artistSavePromises = [];
 
@@ -210,6 +211,20 @@ function deduplicateAndFormat(tracks) {
   });
 
   return Object.values(artists);
+}
+
+function removeFilteredArtists(user, artists) {
+  return User.findOne({ spotifyId: user.spotifyId })
+    .then(dbUser => {
+      const artistIdsToFilter = dbUser.filteredArtists
+        .map(filterArtist => filterArtist.spotifyId)
+        .sort();
+      return artists.filter(artist => !artistIdsToFilter.includes(artist.spotifyId));
+    })
+    .catch(err => {
+      console.log('Error filtering artists, returning unfiltered list.', err);
+      return artists;
+    });
 }
 
 router.post('/filterArtist', (req, res) => {
