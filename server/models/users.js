@@ -10,6 +10,11 @@ const Playlist = new mongoose.Schema({
   owned: Boolean
 });
 
+const FilteredArtist = new mongoose.Schema({
+  name: String,
+  spotifyId: { type: String, index: true }
+});
+
 const User = new mongoose.Schema({
   spotifyId: { type: String, index: true },
   displayName: String,
@@ -17,7 +22,8 @@ const User = new mongoose.Schema({
   image: String,
   accessToken: String,
   refreshToken: String,
-  playlists: [Playlist]
+  playlists: [Playlist],
+  filteredArtists: [FilteredArtist]
 });
 
 module.exports = mongoose.model('User', User);
