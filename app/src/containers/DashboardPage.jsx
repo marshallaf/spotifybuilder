@@ -2,8 +2,13 @@ import React from 'react';
 import axios from 'axios';
 import PlaylistContainer from './PlaylistContainer';
 import UserInfo from '../components/UserInfo';
+import AddToFilter from '../components/AddToFilter'
 
 class DashboardPage extends React.Component {
+  static addToFilter(artistToAdd) {
+    axios.post('/api/filterArtist', { withCredentials: true, data: { artistToAdd } });
+  }
+
   constructor() {
     super();
 
@@ -81,12 +86,17 @@ class DashboardPage extends React.Component {
     } = this.state;
     return (
       <div className='container'>
-        <UserInfo
-          displayName={displayName}
-          imageUrl={imageUrl}
-          save={this.savePlaylists}
-          bundle={this.aggregate}
-        />
+        <div className='sidebar'>
+          <UserInfo
+            displayName={displayName}
+            imageUrl={imageUrl}
+            save={this.savePlaylists}
+            bundle={this.aggregate}
+          />
+          <AddToFilter
+            filterAddAction={DashboardPage.addToFilter}
+          />
+        </div>
         {playlists.length !== 0 && (
           <div className='playlists-container'>
             {playlists.map((playlist, index) => (
