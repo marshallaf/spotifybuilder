@@ -61,7 +61,10 @@ router.get('/playlists', (req, res) => {
       })
     )
     .then(playlists => res.status(200).json(playlists))
-    .catch(() => res.status(500).json({ error: "Error getting user's playlists." }));
+    .catch((error) => {
+      console.log('Failure during playlist fetch or merge.', error);
+      res.status(500).json({ errorMessage: "Error getting user's playlists.", error });
+    });
 });
 
 router.post('/playlists', (req, res) => {
@@ -70,7 +73,7 @@ router.post('/playlists', (req, res) => {
 
   saveUserPlaylists(req.user, req.body.data.playlists)
     .then(() => res.status(200).end())
-    .catch(() => res.status(500).json({ error: "Error saving user's playlists." }));
+    .catch((error) => res.status(500).json({ errorMessage: "Error saving user's playlists.", error }));
 });
 
 router.post('/aggregate', (req, res) => {
@@ -128,7 +131,7 @@ router.post('/aggregate', (req, res) => {
     })
     .catch(bundleErr => {
       console.log(bundleErr);
-      res.status(500).json({ error: 'Error bundling playlists.' });
+      res.status(500).json({ errorMessage: 'Error bundling playlists.', error: bundleErr });
     });
 });
 
@@ -261,28 +264,28 @@ function saveUserPlaylists(user, playlists) {
 }
 
 function getSpotifyPlaylists(userId, accessToken) {
-  // create a base axios config
-  const spotifyReq = axios.create({
+  // create a axios config
+  const playlistsConfig = {
     method: 'get',
-    url: `https://api.spotify.com/v1/users/${userId}/playlists?limit=50`,
+    baseURL: `https://api.spotify.com/v1/users/${userId}/playlists?limit=50`,
     headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  };
 
   // TODO: refactor to use paging and promise-throttle
 
   // actually make the request
   return new Promise((resolve, reject) => {
-    spotifyReq()
+    axios.request(playlistsConfig)
       .then(response => {
         if (response.status === 200) {
           resolve(response.data.items);
         } else {
-          reject();
+          reject(Error(`Response unsuccessful with status: ${response.status}`));
         }
       })
       .catch(err => {
-        console.log(err.response.data.error);
-        reject();
+        console.log('Failure in request for playlists.', err);
+        reject(err);
       });
   });
 }
