@@ -264,18 +264,18 @@ function saveUserPlaylists(user, playlists) {
 }
 
 function getSpotifyPlaylists(userId, accessToken) {
-  // create a base axios config
-  const spotifyReq = axios.create({
+  // create a axios config
+  const playlistsConfig = {
     method: 'get',
-    url: `https://api.spotify.com/v1/users/${userId}/playlists?limit=50`,
+    baseURL: `https://api.spotify.com/v1/users/${userId}/playlists?limit=50`,
     headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  };
 
   // TODO: refactor to use paging and promise-throttle
 
   // actually make the request
   return new Promise((resolve, reject) => {
-    spotifyReq()
+    axios.request(playlistsConfig)
       .then(response => {
         if (response.status === 200) {
           resolve(response.data.items);
