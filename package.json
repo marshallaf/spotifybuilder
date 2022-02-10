@@ -19,7 +19,7 @@
     "express-session": "^1.17.0",
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^5.8.2",
-    "node-sass": "^4.13.0",
+    "node-sass": "^7.0.0",
     "passport": "^0.4.1",
     "passport-spotify": "^1.1.0",
     "promise-throttle": "^1.0.1",
